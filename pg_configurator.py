@@ -1,0 +1,570 @@
+#!/usr/bin/python3
+import os
+import datetime
+import re
+import copy
+from enum import Enum
+
+
+class UnitConverter:
+    #            kilobytes         megabytes        gigabytes       terabytes
+    # PG         kB                MB               GB              TB
+    # ISO        K                 M                G               T
+
+    #            kibibytes         mebibytes        gibibytes       tebibytes
+    # IEC        Ki                Mi               Gi              Ti
+
+    #            milliseconds    seconds     minutes     hours       days
+    # PG         ms              s           min         h           d
+
+    # https://en.wikipedia.org/wiki/Binary_prefix
+    # Specific units of IEC 60027-2 A.2 and ISO/IEC 80000
+
+    sys_std = [
+        (1024 ** 4, 'T'),
+        (1024 ** 3, 'G'),
+        (1024 ** 2, 'M'),
+        (1024 ** 1, 'K'),
+        (1024 ** 0, 'B')
+    ]
+
+    sys_iec = [
+        (1024 ** 4, 'Ti'),
+        (1024 ** 3, 'Gi'),
+        (1024 ** 2, 'Mi'),
+        (1024 ** 1, 'Ki'),
+        (1024 ** 0, '')
+    ]
+
+    sys_iso = [
+        (1000 ** 4, 'T'),
+        (1000 ** 3, 'G'),
+        (1000 ** 2, 'M'),
+        (1000 ** 1, 'K'),
+        (1000 ** 0, 'B')
+    ]
+
+    sys_pg = [
+        (1024 ** 4, 'TB'),
+        (1024 ** 3, 'GB'),
+        (1024 ** 2, 'MB'),
+        (1024 ** 1, 'kB'),      #   <---------------- PG specific
+        (1024 ** 0, '')
+    ]
+
+    @staticmethod
+    def size_to(bytes, system=sys_iso, unit=None):
+        for factor, postfix in system:
+            if (unit is None and bytes/10 >= factor) or unit == postfix:
+                break
+        amount = int(bytes/factor)
+        return str(amount) + postfix
+
+    @staticmethod
+    def size_from(sys_bytes, system=sys_iso):
+        unit = ''.join(re.findall(r'[A-z]', sys_bytes))
+        for factor, suffix in system:
+            if suffix == unit:
+                return int(int(''.join(re.findall(r'[0-9]', sys_bytes))) * factor)
+        return int(sys_bytes)
+
+    @staticmethod
+    def size_cpu_to_ncores(cpu_val):
+        val = ''.join(re.findall(r'[0-9][.][0-9]|[0-9]', cpu_val))
+        if ''.join(re.findall(r'[A-z]', cpu_val)) == 'm':
+            return round(int(val)/1000, 1)
+        else:
+            return round(float(val), 1)
+
+
+class DutyDB(Enum):
+    STATISTIC = 1           # Low reliability, fast speed, long recovery
+                                # Purely analytical and large aggregations. Transactions may be lost in case of a crash
+    MIXED = 2               # Medium reliability, medium speed, medium recovery
+                                # Mostly complicated real time SQL queries
+    FINANCIAL = 3           # High reliability, low speed, fast recovery
+                                # Billing tasks. Can't lose transactions in case of a crash
+
+
+class DiskType(Enum):
+    # We assume that we have minimum 2 disk in hardware RAID1 (or 4 in RAID10) with BBU
+    SATA = 1
+    SAS = 2
+    SSD = 3
+
+
+class PGConfigurator:
+    @staticmethod
+    def calc_synchronous_commit(duty_db, replication_enabled):
+        if replication_enabled:
+            if duty_db == DutyDB.STATISTIC:
+                return "off"
+            if duty_db == DutyDB.MIXED:
+                return "local"
+            if duty_db == DutyDB.FINANCIAL:
+                return "remote_apply"
+        else:
+            if duty_db == DutyDB.STATISTIC:
+                return "off"
+            if duty_db == DutyDB.MIXED:
+                return "off"
+            if duty_db == DutyDB.FINANCIAL:
+                return "on"
+
+    @staticmethod
+    def make_conf(cpu_cores,
+                ram_value,
+                disk_type=DiskType.SAS,
+                duty_db=DutyDB.MIXED,
+                replication_enabled=True,
+                pg_version="10",
+                reserved_ram_percent=10,           # for calc of total_ram_in_bytes
+                reserved_system_ram='256Mi',       # for calc of total_ram_in_bytes
+                shared_buffers_part=0.7,
+                client_mem_part=0.2,               # for all available connections
+                maintenance_mem_part=0.1,          # memory for maintenance connections + autovacuum workers
+                autovacuum_workers_mem_part=0.5,   # from maintenance_mem_part
+                maintenance_conns_mem_part=0.5,    # from maintenance_mem_part
+                min_conns=50,
+                max_conns=300,
+                min_autovac_workers=4,             # autovacuum workers
+                max_autovac_workers=16,
+                min_maint_conns=4,                 # maintenance connections
+                max_maint_conns=16
+        ):
+        #=======================================================================================================
+        # checks
+        if round(shared_buffers_part + client_mem_part + maintenance_mem_part, 1) != 1.0:
+            raise NameError("Invalid memory parts size")
+        if round(autovacuum_workers_mem_part + maintenance_conns_mem_part, 1) != 1.0:
+            raise NameError("Invalid memory parts size for maintenance tasks")
+        #=======================================================================================================
+        # consts
+        page_size = 8192
+        max_cpu_cores = 96      # maximum of CPU cores in system, 4 CPU with 12 cores=>24 threads = 96
+        min_cpu_cores = 4
+        max_ram = '768Gi'
+        max_ram_in_bytes = UnitConverter.size_from(max_ram, system=UnitConverter.sys_iec) * \
+            ((100 - reserved_ram_percent) / 100) - \
+            UnitConverter.size_from(reserved_system_ram, system=UnitConverter.sys_iec)
+        #=======================================================================================================
+        # pre-calculated vars
+        total_ram_in_bytes = UnitConverter.size_from(ram_value, system=UnitConverter.sys_iec) * \
+            ((100 - reserved_ram_percent) / 100) - \
+            UnitConverter.size_from(reserved_system_ram, system=UnitConverter.sys_iec)
+
+        total_cpu_cores = UnitConverter.size_cpu_to_ncores(cpu_cores)
+
+        maint_max_conns = max(
+            ((((total_cpu_cores - min_cpu_cores) * 100) / (max_cpu_cores - min_cpu_cores)) / 100) * \
+                (max_maint_conns - min_maint_conns) + min_maint_conns,
+            min_maint_conns
+        )
+        #=======================================================================================================
+        # system scores calculation in percents
+        cpu_scores = (total_cpu_cores * 100) / max_cpu_cores
+        ram_scores = (total_ram_in_bytes * 100) / max_ram_in_bytes
+        disk_scores = 20 if disk_type == DiskType.SATA else \
+                      40 if disk_type == DiskType.SAS else \
+                      100     # SSD
+
+        system_scores = \
+                0.5 * cpu_scores * ram_scores * 0.866 + \
+                0.5 * ram_scores * disk_scores * 0.866 + \
+                0.5 * disk_scores * cpu_scores * 0.866
+        # where triangle_surface = 0.5 * cpu_scores * ram_scores * sin(120)
+        # sin(120) = 0.866
+
+        system_scores_max = \
+                0.5 * 100 * 100 * 0.866 + \
+                0.5 * 100 * 100 * 0.866 + \
+                0.5 * 100 * 100 * 0.866
+
+        system_scores = (system_scores * 100) / system_scores_max   # 0-100
+        # where 100 if system has max_cpu_cores, max_ram and SSD disk (4 disks in RAID10 for example)
+        #=======================================================================================================
+
+        def calc_cpu_scale(v_min, v_max):
+            return max(
+                (
+                    (
+                        ((total_cpu_cores - min_cpu_cores) * 100) / (max_cpu_cores - min_cpu_cores)
+                    ) / 100
+                ) * (v_max - v_min) + v_min,
+                v_min
+            )
+
+        def calc_system_scores_scale(v_min, v_max):
+            return max(
+                (
+                    system_scores / 100
+                ) * (v_max - v_min) + v_min,
+                v_min
+            )
+
+        alg_set = {
+            # external pre-calculated vars for algs:
+            #    total_ram_in_bytes
+            #    total_cpu_cores
+            #    maint_max_conns
+            "9.6": [
+                #----------------------------------------------------------------------------------
+                # Autovacuum
+                {
+                    "name": "autovacuum",
+                    "const": "on"
+                },
+                {
+                    "name": "autovacuum_max_workers",
+                    "alg": "calc_cpu_scale(min_autovac_workers, max_autovac_workers)"
+                    # where:     min_autovac_workers if CPU_CORES <= 4
+                    #            max_autovac_workers if CPU_CORES = max_cpu_cores
+                },
+                {
+                    "name": "autovacuum_work_mem",
+                    "alg": "(total_ram_in_bytes * maintenance_mem_part * autovacuum_workers_mem_part) / autovacuum_max_workers"
+                },
+                {
+                    "name": "autovacuum_naptime",
+                    "const": "15s"
+                },
+                {
+                    "name": "autovacuum_vacuum_threshold",
+                    "alg": "int(calc_system_scores_scale(10000, 50000))",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "autovacuum_analyze_threshold",
+                    "alg": "int(calc_system_scores_scale(5000, 10000))",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "autovacuum_vacuum_scale_factor",
+                    "const": "0.1",
+                },
+                {
+                    "name": "autovacuum_analyze_scale_factor",
+                    "const": "0.05"
+                },
+                {
+                    "name": "autovacuum_vacuum_cost_limit",
+                    "alg": "int(calc_system_scores_scale(4000, 8000))",
+                    "unit": "as_is"
+                },
+                {
+                    "name": "vacuum_cost_limit",
+                    "alg": "autovacuum_vacuum_cost_limit"
+                },
+                {
+                    "name": "autovacuum_vacuum_cost_delay",
+                    "const": "10ms"
+                },
+                {
+                    "name": "vacuum_cost_delay",
+                    "const": "10ms"
+                },
+                {
+                    "name": "autovacuum_freeze_max_age",
+                    "const": "1200000000"
+                },
+                {
+                    "name": "autovacuum_multixact_freeze_max_age",
+                    "const": "1400000000"
+                },
+                #----------------------------------------------------------------------------------
+                # Resource Consumption
+                {
+                    "name": "shared_buffers",
+                    "alg": "total_ram_in_bytes * shared_buffers_part"
+                },
+                {
+                    "name": "max_connections",
+                    "alg": """\
+                        max(
+                            calc_cpu_scale(min_conns, max_conns),
+                            min_conns
+                        )"""
+                    # where:     min_conns if CPU_CORES <= 4
+                    #            max_conns if CPU_CORES = max_cpu_cores
+                },
+                {
+                    "name": "superuser_reserved_connections",
+                    "const": "4"
+                },
+                {
+                    "name": "work_mem",
+                    "alg": "((total_ram_in_bytes * client_mem_part) / max_connections) * 0.9"
+                },
+                {
+                    "name": "temp_buffers",
+                    "alg": "((total_ram_in_bytes * client_mem_part) / max_connections) * 0.1"
+                    # where: temp_buffers per session, 10% of work_mem
+                },
+                {
+                    "name": "maintenance_work_mem",
+                    "alg": "(total_ram_in_bytes * maintenance_mem_part * maintenance_conns_mem_part) / maint_max_conns"
+                },
+                #----------------------------------------------------------------------------------
+                # Write Ahead Log
+                {
+                    "name": "wal_level",
+                    "alg": "'logical' if replication_enabled else 'replica'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_keep_segments",
+                    "alg": "int(calc_system_scores_scale(100, 10000)) if replication_enabled else 0"
+                },
+                {
+                    "name": "synchronous_commit",
+                    "alg": "PGConfigurator.calc_synchronous_commit(duty_db, replication_enabled)",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "full_page_writes",
+                    "alg": "'on' if duty_db == DutyDB.FINANCIAL else 'off'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_compression",
+                    "alg": "'on' if duty_db == DutyDB.FINANCIAL else 'off'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_buffers",            # http://rhaas.blogspot.ru/2012/03/tuning-sharedbuffers-and-walbuffers.html
+                    "alg": """\
+                        int(
+                            calc_system_scores_scale(
+                                UnitConverter.size_from('16MB', system=UnitConverter.sys_pg), 
+                                UnitConverter.size_from('256MB', system=UnitConverter.sys_pg)
+                            )
+                        )""",
+                    "to_unit": "MB"
+                },
+                {
+                    "name": "wal_writer_delay",       # milliseconds
+                    "alg": """\
+                        10 if duty_db == DutyDB.FINANCIAL else \
+                        int(calc_system_scores_scale(200, 1000)) if duty_db == DutyDB.MIXED else \
+                        int(calc_system_scores_scale(200, 5000))""",
+                    "unit_postfix": "ms"
+                },
+                {
+                    "name": "min_wal_size",
+                    "alg": """\
+                        calc_system_scores_scale(
+                            UnitConverter.size_from('512MB', system=UnitConverter.sys_pg), 
+                            UnitConverter.size_from('16GB', system=UnitConverter.sys_pg)
+                        )"""
+                },
+                {
+                    "name": "max_wal_size",
+                    # CHECKPOINT every checkpoint_timeout or when the WAL grows to about max_wal_size on disk
+                    "alg": """\
+                        calc_system_scores_scale(
+                            UnitConverter.size_from('1GB', system=UnitConverter.sys_pg), 
+                            UnitConverter.size_from('32GB', system=UnitConverter.sys_pg)
+                        )"""
+                },
+                #----------------------------------------------------------------------------------
+                # Checkpointer
+                {
+                    "name": "checkpoint_timeout",
+                    "alg": """\
+                        '5min' if duty_db == DutyDB.FINANCIAL else \
+                        '30min' if duty_db == DutyDB.MIXED else \
+                        '1h'""",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "checkpoint_completion_target",
+                    "alg": """\
+                        '0.5' if duty_db == DutyDB.FINANCIAL else \
+                        '0.7' if duty_db == DutyDB.MIXED else \
+                        '0.9'""",       # DutyDB.STATISTIC
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "commit_delay",       # microseconds
+                    "alg": """\
+                        0 if duty_db == DutyDB.FINANCIAL else \
+                        int(calc_system_scores_scale(100, 1000)) if duty_db == DutyDB.MIXED else \
+                        int(calc_system_scores_scale(100, 10000))""",       # DutyDB.STATISTIC
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "commit_siblings",
+                    "alg": """\
+                        0 if duty_db == DutyDB.FINANCIAL else \
+                        int(calc_system_scores_scale(10, 100))""",
+                    "to_unit": "as_is"
+                },
+                #----------------------------------------------------------------------------------
+                # Background Writer
+                {
+                    "name": "bgwriter_delay",
+                    "alg": "int(calc_system_scores_scale(200, 3000))",
+                    "unit_postfix": "ms"
+                },
+                {
+                    "name": "bgwriter_lru_maxpages",
+                    "alg": """\
+                        int(
+                            calc_system_scores_scale(
+                                UnitConverter.size_from('8MB', system=UnitConverter.sys_pg) / page_size,
+                                UnitConverter.size_from('256MB', system=UnitConverter.sys_pg) / page_size
+                            )
+                        )""",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "bgwriter_lru_multiplier",
+                    "const": "7.0"
+                },
+                #----------------------------------------------------------------------------------
+                # Query Planning
+                {
+                    "name": "effective_cache_size",
+                    "alg": "total_ram_in_bytes - shared_buffers"
+                },
+                {
+                    "name": "default_statistics_target",
+                    "const": "1000"
+                },
+                {
+                    "name": "random_page_cost",
+                    "alg": """\
+                        '6' if disk_type == DiskType.SATA else \
+                        '4' if disk_type == DiskType.SAS else \
+                        '1'""",         # SSD
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "seq_page_cost",
+                    "const": "1"        # default
+                },
+                #----------------------------------------------------------------------------------
+                # Asynchronous Behavior
+                {
+                    "name": "effective_io_concurrency",
+                    "alg": """\
+                        '2' if disk_type == DiskType.SATA else \
+                        '4' if disk_type == DiskType.SAS else \
+                        '128'""",       # SSD
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "max_worker_processes",
+                    "alg": """calc_cpu_scale(4, 32)"""
+                },
+                {
+                    "name": "max_parallel_workers",
+                    "alg": "calc_cpu_scale(4, 32)"
+                },
+                {
+                    "name": "max_parallel_workers_per_gather",
+                    "alg": "calc_cpu_scale(2, 16)"
+                }
+            ],
+            "10": [
+                {
+                    "__parent": "9.6"
+                }
+            ],
+            "11": [
+                {
+                    "__parent": "10"                        # inheritance
+                },
+                {
+                    "name": "shared_buffers",
+                    "alg": "total_ram_in_bytes * 0.3"       # redefinition
+                },
+                {
+                    "name": "some_param",
+                    "alg": "deprecated"                     # deprecation
+                },
+                {
+                    "name": "new_param",
+                    "const": "10"                           # adding of a new parameter in this version
+                }
+            ]
+        }
+
+        def iterate_alg_set() -> [str, dict]:
+            for alg_set_v in sorted(
+                    [(ver, alg_set_v) for ver, alg_set_v in alg_set.items()],
+                    key=lambda x: float(x[0])
+            ):
+                yield alg_set_v[0], alg_set_v[1]
+
+        def prepare_alg_set(tune_alg):
+            prepared_tune_alg = copy.deepcopy(tune_alg)
+
+            for ver, alg_set in iterate_alg_set():
+                # inheritance, redefinition, deprecation
+                if len([alg for alg in alg_set if "__parent" in alg]) > 0:
+                    current_ver_deprecated_params = [
+                        alg["name"] for alg in alg_set if "alg" in alg and alg["alg"] == "deprecated"
+                    ]
+                    prepared_tune_alg[ver] = [
+                        alg for alg in alg_set \
+                            if not("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
+                    ]
+
+                    alg_set_current_version = prepared_tune_alg[ver]
+                    alg_set_from_parent = prepared_tune_alg[
+                            [alg for alg in alg_set if "__parent" in alg][0]["__parent"]
+                    ]
+
+                    prepared_tune_alg[ver].extend([
+                            alg for alg in alg_set_from_parent
+                            if alg["name"] not in [
+                                alg["name"] for alg in alg_set_current_version
+                            ] and alg["name"] not in current_ver_deprecated_params
+                        ]
+                    )
+
+            return prepared_tune_alg
+
+        config_res = {}
+        if pg_version not in alg_set:
+            raise NameError("Unsupported PostgreSQL version: %s" % pg_version)
+        params = prepare_alg_set(alg_set)[pg_version]
+        for param in params:
+            param_name = param["name"]
+            value = param["alg"] if "alg" in param else param["const"]
+
+            if debug_mode:
+                print("Processing: %s %s" % (param_name, value))
+            if "const" in param:
+                config_res[param_name] = value
+
+            if "alg" in param:
+                if "unit_postfix" in param:
+                    config_res[param_name] = str(eval(param["alg"])) + param["unit_postfix"]
+                else:
+                    if "to_unit" in param and param["to_unit"] == 'as_is':
+                        config_res[param_name] = str(eval(param["alg"]))
+                    else:
+                        config_res[param_name] = str(
+                            UnitConverter.size_to(
+                                eval(param["alg"]),
+                                system=UnitConverter.sys_pg,
+                                unit=param["to_unit"] if "to_unit" in param is not None else None
+                            )
+                        )
+                        exec(param_name + '=' + str(eval(param["alg"])))
+        return config_res
+
+
+class ConfigReader:
+    pass
+
+
+if __name__ == "__main__":
+    dt = datetime.datetime.now().isoformat(' ')
+    debug_mode = True if os.environ.get("DEBUG_MODE") is not None else \
+                 False
+
+    if debug_mode:
+        print('%s %s started' % (dt, os.path.basename(__file__)))
