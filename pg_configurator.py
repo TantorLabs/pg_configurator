@@ -81,12 +81,12 @@ class UnitConverter:
             return round(float(val), 1)
 
 
-class BasicEmun():
+class BasicEnum():
     def __str__(self):
         return self.value
 
 
-class DutyDB(BasicEmun, Enum):
+class DutyDB(BasicEnum, Enum):
     STATISTIC = 'statistic'           # Low reliability, fast speed, long recovery
                                           # Purely analytical and large aggregations
                                           # Transactions may be lost in case of a crash
@@ -96,7 +96,7 @@ class DutyDB(BasicEmun, Enum):
                                           # Billing tasks. Can't lose transactions in case of a crash
 
 
-class DiskType(BasicEmun, Enum):
+class DiskType(BasicEnum, Enum):
     # We assume that we have minimum 2 disk in hardware RAID1 (or 4 in RAID10) with BBU
     SATA = 'SATA'
     SAS = 'SAS'
@@ -573,7 +573,7 @@ class PGConfigurator:
         return config_res
 
 
-class OutputFormat(BasicEmun, Enum):
+class OutputFormat(BasicEnum, Enum):
     JSON = 'json'
     CONF = 'conf'
 
