@@ -1,9 +1,13 @@
 #!/usr/bin/python3
 import os
+import sys
 import datetime
 import re
 import copy
 from enum import Enum
+import argparse
+import inspect
+import json
 
 
 class UnitConverter:
@@ -77,20 +81,26 @@ class UnitConverter:
             return round(float(val), 1)
 
 
-class DutyDB(Enum):
-    STATISTIC = 1           # Low reliability, fast speed, long recovery
-                                # Purely analytical and large aggregations. Transactions may be lost in case of a crash
-    MIXED = 2               # Medium reliability, medium speed, medium recovery
-                                # Mostly complicated real time SQL queries
-    FINANCIAL = 3           # High reliability, low speed, fast recovery
-                                # Billing tasks. Can't lose transactions in case of a crash
+class BasicEmun():
+    def __str__(self):
+        return self.value
 
 
-class DiskType(Enum):
+class DutyDB(BasicEmun, Enum):
+    STATISTIC = 'statistic'           # Low reliability, fast speed, long recovery
+                                          # Purely analytical and large aggregations
+                                          # Transactions may be lost in case of a crash
+    MIXED = 'mixed'                   # Medium reliability, medium speed, medium recovery
+                                          # Mostly complicated real time SQL queries
+    FINANCIAL = 'financial'           # High reliability, low speed, fast recovery
+                                          # Billing tasks. Can't lose transactions in case of a crash
+
+
+class DiskType(BasicEmun, Enum):
     # We assume that we have minimum 2 disk in hardware RAID1 (or 4 in RAID10) with BBU
-    SATA = 1
-    SAS = 2
-    SSD = 3
+    SATA = 'SATA'
+    SAS = 'SAS'
+    SSD = 'SSD'
 
 
 class PGConfigurator:
@@ -132,6 +142,12 @@ class PGConfigurator:
                 min_maint_conns=4,                 # maintenance connections
                 max_maint_conns=16
         ):
+        frame = inspect.currentframe()
+        args, _, _, values = inspect.getargvalues(frame)
+        print("#--------------- Incoming parameters")
+        for arg in args:
+            print("#   %s = %s" % (arg, values[arg]))
+        print("#-----------------------------------")
         #=======================================================================================================
         # checks
         if round(shared_buffers_part + client_mem_part + maintenance_mem_part, 1) != 1.0:
@@ -293,11 +309,11 @@ class PGConfigurator:
                 },
                 {
                     "name": "work_mem",
-                    "alg": "((total_ram_in_bytes * client_mem_part) / max_connections) * 0.9"
+                    "alg": "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.9, 1024 * 1000)"
                 },
                 {
                     "name": "temp_buffers",
-                    "alg": "((total_ram_in_bytes * client_mem_part) / max_connections) * 0.1"
+                    "alg": "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.1, 1024 * 1000)"
                     # where: temp_buffers per session, 10% of work_mem
                 },
                 {
@@ -557,14 +573,46 @@ class PGConfigurator:
         return config_res
 
 
-class ConfigReader:
-    pass
+class OutputFormat(BasicEmun, Enum):
+    JSON = 'json'
+    CONF = 'conf'
 
 
 if __name__ == "__main__":
-    dt = datetime.datetime.now().isoformat(' ')
-    debug_mode = True if os.environ.get("DEBUG_MODE") is not None else \
-                 False
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", help="Enable debug mode", type=bool, default=False)
+    parser.add_argument("--output-format", help="Specify output format", type=OutputFormat, \
+        choices=list(OutputFormat), default=OutputFormat.CONF)
+    parser.add_argument("--output-file-name", help="Save to file", type=str)
+    parser.add_argument("--db-ram", help="Available RAM memory", type=str, default='2Gi')
+    parser.add_argument("--db-cpu", help="Available CPU cores", type=str, default='2')
+    parser.add_argument("--db-disk-type", help="Disks type", type=DiskType, \
+        choices=list(DiskType), default=DiskType.SAS)
+    parser.add_argument("--db-duty", help="Database duty", type=DutyDB, \
+        choices=list(DutyDB), default=DutyDB.MIXED)
 
+    args = parser.parse_args()
+    debug_mode = args.debug
+
+    dt = datetime.datetime.now().isoformat(' ')
     if debug_mode:
         print('%s %s started' % (dt, os.path.basename(__file__)))
+
+    conf = PGConfigurator.make_conf(args.db_cpu,
+                    args.db_ram,
+                    disk_type=args.db_disk_type,
+                    duty_db=args.db_duty
+            )
+
+    out_conf = ''
+    if args.output_format == OutputFormat.CONF:
+        for key, val in conf.items():
+            out_conf += '%s = %s\n' % (key, val)
+
+    if args.output_format == OutputFormat.JSON:
+        out_conf = json.dumps(conf, indent=4)
+
+    if args.output_file_name is not None:
+        pass
+    else:
+        print(out_conf)
