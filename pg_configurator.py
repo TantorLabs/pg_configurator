@@ -613,6 +613,7 @@ if __name__ == "__main__":
         out_conf = json.dumps(conf, indent=4)
 
     if args.output_file_name is not None:
-        pass
+        with open(args.output_file_name, "w") as output_file_name:
+            output_file_name.write(out_conf)
     else:
         print(out_conf)
