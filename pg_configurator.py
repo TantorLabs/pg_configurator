@@ -545,7 +545,7 @@ class PGConfigurator:
             value = param["alg"] if "alg" in param else param["const"]
 
             if debug_mode:
-                print("Processing: %s %s" % (param_name, value))
+                print("Processing: %s = %s" % (param_name, value))
             if "const" in param:
                 config_res[param_name] = value
 
