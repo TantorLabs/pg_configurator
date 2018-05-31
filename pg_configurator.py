@@ -577,19 +577,60 @@ class OutputFormat(BasicEnum, Enum):
     JSON = 'json'
     CONF = 'conf'
 
+def get_default_args(func):
+    signature = inspect.signature(func)
+    return {
+        k: v.default
+        for k, v in signature.parameters.items()
+            if v.default is not inspect.Parameter.empty
+    }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debug", help="Enable debug mode", type=bool, default=False)
-    parser.add_argument("--output-format", help="Specify output format", type=OutputFormat, \
-        choices=list(OutputFormat), default=OutputFormat.CONF)
+    mca = get_default_args(PGConfigurator.make_conf)		#make_conf_args
+
+    parser.add_argument("--debug", help="Enable debug mode, (default: %(default)s)", type=bool, default=False)
+    parser.add_argument("--output-format", help="Specify output format, (default: %(default)s)", type=OutputFormat, \
+        choices=list(OutputFormat), default=OutputFormat.CONF.value)
     parser.add_argument("--output-file-name", help="Save to file", type=str)
-    parser.add_argument("--db-ram", help="Available RAM memory", type=str, default='2Gi')
-    parser.add_argument("--db-cpu", help="Available CPU cores", type=str, default='2')
-    parser.add_argument("--db-disk-type", help="Disks type", type=DiskType, \
-        choices=list(DiskType), default=DiskType.SAS)
-    parser.add_argument("--db-duty", help="Database duty", type=DutyDB, \
-        choices=list(DutyDB), default=DutyDB.MIXED)
+
+    parser.add_argument("--db-cpu", help="Available CPU cores, (default: %(default)s)", type=str, default='2')
+    parser.add_argument("--db-ram", help="Available RAM memory, (default: %(default)s)", type=str, default='2Gi')
+    parser.add_argument("--db-disk-type", help="Disks type, (default: %(default)s)", type=DiskType, \
+        choices=list(DiskType), default=mca["disk_type"].value)
+    parser.add_argument("--db-duty", help="Database duty, (default: %(default)s)", type=DutyDB, \
+        choices=list(DutyDB), default=mca["duty_db"].value)
+    parser.add_argument("--replication-enabled", help="Replication is enabled, (default: %(default)s)", type=bool, \
+        default=mca["replication_enabled"])
+    parser.add_argument("--pg-version", help="PostgreSQL version, (default: %(default)s)", type=str, \
+        choices=list(["9.6", "10", "11"]), default=mca["pg_version"])
+
+    parser.add_argument("--reserved-ram-percent", help="Reserved RAM memory part, (default: %(default)s)", type=float, \
+        default=mca["reserved_ram_percent"])
+    parser.add_argument("--reserved-system-ram", help="Reserved system RAM memory, (default: %(default)s)", type=str, \
+        default=mca["reserved_system_ram"])
+    parser.add_argument("--shared-buffers-part", help="Shared buffers part, (default: %(default)s)", type=float, \
+        default=mca["shared_buffers_part"])
+    parser.add_argument("--client-mem-part", help="Memory part for all available connections, (default: %(default)s)", \
+        type=float, default=mca["client_mem_part"])
+    parser.add_argument("--maintenance-mem-part", help="Memory part for maintenance connections, (default: %(default)s)", \
+        type=float, default=mca["maintenance_mem_part"])
+    parser.add_argument("--autovacuum-workers-mem-part", help="Memory part of maintenance-mem, (default: %(default)s)", \
+        type=float, default=mca["autovacuum_workers_mem_part"])
+    parser.add_argument("--maintenance-conns-mem-part", help="Memory part of maintenance-mem, (default: %(default)s)", \
+        type=float, default=mca["maintenance_conns_mem_part"])
+    parser.add_argument("--min-conns", help="Min client connection, (default: %(default)s)", type=int, \
+        default=mca["min_conns"])
+    parser.add_argument("--max-conns", help="Max client connection, (default: %(default)s)", type=int, \
+        default=mca["max_conns"])
+    parser.add_argument("--min-autovac-workers", help="Min autovacuum workers, (default: %(default)s)", type=int, \
+        default=mca["min_autovac_workers"])
+    parser.add_argument("--max-autovac-workers", help="Max autovacuum workers, (default: %(default)s)", type=int, \
+        default=mca["max_autovac_workers"])
+    parser.add_argument("--min-maint-conns", help="Min maintenance connections, (default: %(default)s)", type=int, \
+        default=mca["min_maint_conns"])
+    parser.add_argument("--max-maint-conns", help="Max maintenance connections, (default: %(default)s)", type=int, \
+        default=mca["max_maint_conns"])
 
     args = parser.parse_args()
     debug_mode = args.debug
@@ -598,10 +639,26 @@ if __name__ == "__main__":
     if debug_mode:
         print('%s %s started' % (dt, os.path.basename(__file__)))
 
-    conf = PGConfigurator.make_conf(args.db_cpu,
+    conf = PGConfigurator.make_conf(
+                    args.db_cpu,
                     args.db_ram,
                     disk_type=args.db_disk_type,
-                    duty_db=args.db_duty
+                    duty_db=args.db_duty,
+                    replication_enabled=args.replication_enabled,
+                    pg_version=args.pg_version,
+                    reserved_ram_percent=args.reserved_ram_percent,
+                    reserved_system_ram=args.reserved_system_ram,
+                    shared_buffers_part=args.shared_buffers_part,
+                    client_mem_part=args.client_mem_part,
+                    maintenance_mem_part=args.maintenance_mem_part,
+                    autovacuum_workers_mem_part=args.autovacuum_workers_mem_part,
+                    maintenance_conns_mem_part=args.maintenance_conns_mem_part,
+                    min_conns=args.min_conns,
+                    max_conns=args.max_conns,
+                    min_autovac_workers=args.min_autovac_workers,
+                    max_autovac_workers=args.max_autovac_workers,
+                    min_maint_conns=args.min_maint_conns,
+                    max_maint_conns=args.max_maint_conns
             )
 
     out_conf = ''
