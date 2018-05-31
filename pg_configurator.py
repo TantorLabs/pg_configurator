@@ -142,12 +142,6 @@ class PGConfigurator:
                 min_maint_conns=4,                 # maintenance connections
                 max_maint_conns=16
         ):
-        frame = inspect.currentframe()
-        args, _, _, values = inspect.getargvalues(frame)
-        print("#--------------- Incoming parameters")
-        for arg in args:
-            print("#   %s = %s" % (arg, values[arg]))
-        print("#-----------------------------------")
         #=======================================================================================================
         # checks
         if round(shared_buffers_part + client_mem_part + maintenance_mem_part, 1) != 1.0:
@@ -638,6 +632,12 @@ if __name__ == "__main__":
     dt = datetime.datetime.now().isoformat(' ')
     if debug_mode:
         print('%s %s started' % (dt, os.path.basename(__file__)))
+
+    if debug_mode:
+        print("#--------------- Incoming parameters")
+        for arg in vars(args):
+            print("#   %s = %s" % (arg, getattr(args, arg)))
+        print("#-----------------------------------")
 
     conf = PGConfigurator.make_conf(
                     args.db_cpu,
