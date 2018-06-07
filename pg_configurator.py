@@ -468,10 +468,6 @@ class PGConfigurator:
                     "alg": """calc_cpu_scale(4, 32)"""
                 },
                 {
-                    "name": "max_parallel_workers",
-                    "alg": "calc_cpu_scale(4, 32)"
-                },
-                {
                     "name": "max_parallel_workers_per_gather",
                     "alg": "calc_cpu_scale(2, 16)"
                 }
@@ -479,6 +475,10 @@ class PGConfigurator:
             "10": [
                 {
                     "__parent": "9.6"
+                },
+                {
+                    "name": "max_parallel_workers",
+                    "alg": "calc_cpu_scale(4, 32)"
                 }
             ],
             "11": [
