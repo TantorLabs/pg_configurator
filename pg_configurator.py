@@ -107,18 +107,18 @@ class PGConfigurator:
     @staticmethod
     def calc_synchronous_commit(duty_db, replication_enabled):
         if replication_enabled:
-            if duty_db == DutyDB.STATISTIC:
+            if duty_db == DutyDB.STATISTIC.value:
                 return "off"
-            if duty_db == DutyDB.MIXED:
+            if duty_db == DutyDB.MIXED.value:
                 return "local"
-            if duty_db == DutyDB.FINANCIAL:
+            if duty_db == DutyDB.FINANCIAL.value:
                 return "remote_apply"
         else:
-            if duty_db == DutyDB.STATISTIC:
+            if duty_db == DutyDB.STATISTIC.value:
                 return "off"
-            if duty_db == DutyDB.MIXED:
+            if duty_db == DutyDB.MIXED.value:
                 return "off"
-            if duty_db == DutyDB.FINANCIAL:
+            if duty_db == DutyDB.FINANCIAL.value:
                 return "on"
 
     @staticmethod
@@ -470,6 +470,16 @@ class PGConfigurator:
                 {
                     "name": "max_parallel_workers_per_gather",
                     "alg": "calc_cpu_scale(2, 16)"
+                },
+                #----------------------------------------------------------------------------------
+                # Lock Management
+                {
+                    "name": "max_locks_per_transaction",
+                    "alg": "calc_system_scores_scale(64, 4096)"
+                },
+                {
+                    "name": "max_pred_locks_per_transaction",
+                    "alg": "calc_system_scores_scale(64, 4096)"
                 }
             ],
             "10": [
@@ -544,7 +554,7 @@ class PGConfigurator:
             param_name = param["name"]
             value = param["alg"] if "alg" in param else param["const"]
 
-            if debug_mode:
+            if ('debug_mode' in vars() or 'debug_mode' in globals()) and debug_mode:
                 print("Processing: %s = %s" % (param_name, value))
             if "const" in param:
                 config_res[param_name] = value
