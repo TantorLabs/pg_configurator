@@ -107,18 +107,18 @@ class PGConfigurator:
     @staticmethod
     def calc_synchronous_commit(duty_db, replication_enabled):
         if replication_enabled:
-            if duty_db == DutyDB.STATISTIC.value:
+            if duty_db == DutyDB.STATISTIC:
                 return "off"
-            if duty_db == DutyDB.MIXED.value:
+            if duty_db == DutyDB.MIXED:
                 return "local"
-            if duty_db == DutyDB.FINANCIAL.value:
+            if duty_db == DutyDB.FINANCIAL:
                 return "remote_apply"
         else:
-            if duty_db == DutyDB.STATISTIC.value:
+            if duty_db == DutyDB.STATISTIC:
                 return "off"
-            if duty_db == DutyDB.MIXED.value:
+            if duty_db == DutyDB.MIXED:
                 return "off"
-            if duty_db == DutyDB.FINANCIAL.value:
+            if duty_db == DutyDB.FINANCIAL:
                 return "on"
 
     @staticmethod
