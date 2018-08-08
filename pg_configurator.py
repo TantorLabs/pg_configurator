@@ -413,7 +413,7 @@ class PGConfigurator:
                 # Background Writer
                 {
                     "name": "bgwriter_delay",
-                    "alg": "int(calc_system_scores_scale(200, 3000))",
+                    "alg": "int(calc_system_scores_scale(200, 1000))",
                     "unit_postfix": "ms"
                 },
                 {
@@ -422,7 +422,7 @@ class PGConfigurator:
                         int(
                             calc_system_scores_scale(
                                 UnitConverter.size_from('8MB', system=UnitConverter.sys_pg) / page_size,
-                                UnitConverter.size_from('256MB', system=UnitConverter.sys_pg) / page_size
+                                1000
                             )
                         )""",
                     "to_unit": "as_is"
@@ -489,6 +489,22 @@ class PGConfigurator:
                 {
                     "name": "max_parallel_workers",
                     "alg": "calc_cpu_scale(4, 32)"
+                },
+                {
+                    "name": "bgwriter_delay",
+                    "alg": "int(calc_system_scores_scale(200, 3000))",
+                    "unit_postfix": "ms"
+                },
+                {
+                    "name": "bgwriter_lru_maxpages",
+                    "alg": """\
+                        int(
+                            calc_system_scores_scale(
+                                UnitConverter.size_from('8MB', system=UnitConverter.sys_pg) / page_size,
+                                UnitConverter.size_from('256MB', system=UnitConverter.sys_pg) / page_size
+                            )
+                        )""",
+                    "to_unit": "as_is"
                 }
             ],
             "11": [
