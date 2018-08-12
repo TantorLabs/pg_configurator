@@ -136,9 +136,9 @@ class PGConfigurator:
                 autovacuum_workers_mem_part=0.5,   # from maintenance_mem_part
                 maintenance_conns_mem_part=0.5,    # from maintenance_mem_part
                 min_conns=50,
-                max_conns=300,
+                max_conns=500,
                 min_autovac_workers=4,             # autovacuum workers
-                max_autovac_workers=16,
+                max_autovac_workers=20,
                 min_maint_conns=4,                 # maintenance connections
                 max_maint_conns=16
         ):
@@ -318,7 +318,7 @@ class PGConfigurator:
                 # Write Ahead Log
                 {
                     "name": "wal_level",
-                    "alg": "'logical' if replication_enabled else 'replica'",
+                    "alg": "'logical' if replication_enabled else 'minimal'",
                     "to_unit": "as_is"
                 },
                 {
@@ -332,12 +332,12 @@ class PGConfigurator:
                 },
                 {
                     "name": "full_page_writes",
-                    "alg": "'on' if duty_db == DutyDB.FINANCIAL else 'off'",
+                    "alg": "'on' if duty_db == DutyDB.FINANCIAL or replication_enabled else 'off'",
                     "to_unit": "as_is"
                 },
                 {
                     "name": "wal_compression",
-                    "alg": "'on' if duty_db == DutyDB.FINANCIAL else 'off'",
+                    "alg": "'on' if replication_enabled else 'off'",
                     "to_unit": "as_is"
                 },
                 {
@@ -375,6 +375,55 @@ class PGConfigurator:
                             UnitConverter.size_from('1GB', system=UnitConverter.sys_pg), 
                             UnitConverter.size_from('32GB', system=UnitConverter.sys_pg)
                         )"""
+                },
+                #----------------------------------------------------------------------------------
+                # Replication
+                # Primary
+                {
+                    "name": "max_replication_slots",
+                    "alg": "10 if replication_enabled else 0",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "max_wal_senders",
+                    "alg": "10 if replication_enabled else 0",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_sender_timeout",
+                    "alg": "'180s' if replication_enabled else '0'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_log_hints",
+                    "alg": "'on' if replication_enabled else 'off'",
+                    "to_unit": "as_is"
+                },
+                # Standby
+                {
+                    "name": "hot_standby",
+                    "alg": "'on' if replication_enabled else 'off'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_receiver_timeout",
+                    "alg": "'180s' if replication_enabled else '0'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "max_standby_streaming_delay",
+                    "alg": "'90s' if replication_enabled else '0'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "wal_receiver_status_interval",
+                    "alg": "'10s' if replication_enabled else '0'",
+                    "to_unit": "as_is"
+                },
+                {
+                    "name": "hot_standby_feedback",
+                    "alg": "'on' if replication_enabled else 'off'",
+                    "to_unit": "as_is"
                 },
                 #----------------------------------------------------------------------------------
                 # Checkpointer
