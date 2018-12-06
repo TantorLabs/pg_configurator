@@ -337,7 +337,7 @@ class PGConfigurator:
                 },
                 {
                     "name": "wal_keep_segments",
-                    "alg": "int(calc_system_scores_scale(100, 10000)) if replication_enabled else 0"
+                    "alg": "int(calc_system_scores_scale(500, 10000)) if replication_enabled else 0"
                 },
                 {
                     "name": "synchronous_commit",
@@ -370,12 +370,21 @@ class PGConfigurator:
                     "to_unit": "MB"
                 },
                 {
+                    # if synchronous_commit = off
                     "name": "wal_writer_delay",       # milliseconds
                     "alg": """\
-                        10 if duty_db == DutyDB.FINANCIAL else \
+                        100 if duty_db == DutyDB.FINANCIAL else \
                         int(calc_system_scores_scale(200, 1000)) if duty_db == DutyDB.MIXED else \
                         int(calc_system_scores_scale(200, 5000))""",
                     "unit_postfix": "ms"
+                },
+                {
+                    "name": "wal_writer_flush_after",
+                    "alg": """\
+                        calc_system_scores_scale(
+                            UnitConverter.size_from('1MB', system=UnitConverter.sys_pg),
+                            UnitConverter.size_from('64MB', system=UnitConverter.sys_pg)
+                        )"""
                 },
                 {
                     "name": "min_wal_size",
@@ -391,7 +400,10 @@ class PGConfigurator:
                     "alg": """\
                         calc_system_scores_scale(
                             UnitConverter.size_from('1GB', system=UnitConverter.sys_pg), 
-                            UnitConverter.size_from('32GB', system=UnitConverter.sys_pg)
+                            UnitConverter.size_from(
+                                '32GB' if duty_db == DutyDB.FINANCIAL else '64GB',
+                                system=UnitConverter.sys_pg
+                            )
                         )"""
                 },
                 # ----------------------------------------------------------------------------------
@@ -480,22 +492,15 @@ class PGConfigurator:
                 # Background Writer
                 {
                     "name": "bgwriter_delay",
-                    "alg": "int(calc_system_scores_scale(200, 1000))",
+                    "alg": "int(calc_system_scores_scale(200, 1000))",      # delay between activity rounds
                     "unit_postfix": "ms"
                 },
                 {
                     "name": "bgwriter_lru_maxpages",
-                    "alg": """\
-                        int(
-                            calc_system_scores_scale(
-                                UnitConverter.size_from('8MB', system=UnitConverter.sys_pg) / page_size,
-                                1000
-                            )
-                        )""",
-                    "to_unit": "as_is"
+                    "const": "1000"                                         # 8MB per each round
                 },
                 {
-                    "name": "bgwriter_lru_multiplier",
+                    "name": "bgwriter_lru_multiplier",                      # some cushion against spikes in demand
                     "const": "7.0"
                 },
                 # ----------------------------------------------------------------------------------
