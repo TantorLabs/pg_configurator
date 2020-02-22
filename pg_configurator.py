@@ -317,7 +317,7 @@ class PGConfigurator:
                 },
                 {
                     "name": "work_mem",
-                    "alg": "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.9, 1024 * 1000)"
+                    "alg": "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.9, 1024 * 10000)"
                 },
                 {
                     "name": "temp_buffers",
@@ -608,18 +608,6 @@ class PGConfigurator:
             "12": [
                 {
                     "__parent": "11"                                                # inheritance
-                },
-                {
-                    "name": "shared_buffers",
-                    "alg": "total_ram_in_bytes * shared_buffers_part * 0.5"         # redefinition
-                },
-                {
-                    "name": "some_param",
-                    "alg": "deprecated"                                             # deprecation
-                },
-                {
-                    "name": "new_param",
-                    "const": "10"                           # adding of a new parameter in this version
                 }
             ]
         }
@@ -758,6 +746,11 @@ class PGConfigurator:
                 {
                     "__parent": "10"
                 }
+            ],
+            "12": [
+                {
+                    "__parent": "11"
+                }
             ]
         }
 
@@ -839,6 +832,7 @@ class PGConfigurator:
 
 class OutputFormat(BasicEnum, Enum):
     JSON = 'json'
+    PATRONI_JSON = 'patroni-json'
     CONF = 'conf'
 
 
@@ -914,7 +908,7 @@ if __name__ == "__main__":
         "--pg-version",
         help="PostgreSQL version, (default: %(default)s)",
         type=str,
-        choices=list(["9.6", "10", "11"]),
+        choices=list(["9.6", "10", "11", "12"]),
         default=mca["pg_version"]
     )
     parser.add_argument(
@@ -1069,6 +1063,16 @@ if __name__ == "__main__":
 
     if args.output_format == OutputFormat.JSON:
         out_conf = json.dumps(conf, indent=4)
+
+    if args.output_format == OutputFormat.PATRONI_JSON:
+        for key, val in conf.items():
+            conf[key] = val.strip("'")
+        patroni_conf = {
+            "postgresql": {
+                "parameters": conf
+            }
+        }
+        out_conf = json.dumps(patroni_conf, indent=4)
 
     if args.output_file_name is not None:
         if os.path.exists(args.output_file_name):
