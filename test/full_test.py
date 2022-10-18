@@ -289,9 +289,9 @@ class UnitTest(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
 
             out, _ = DBOperations.run_command([
                 'pgbench',
-                '-c', '24',
-                '-j', '8',
-                '-T', '10',
+                '-c', '8',
+                '-j', '4',
+                '-T', '100',
                 '-U', 'postgres',
                 '-h', '127.0.0.1',
                 '-p', str(target_db[2]),

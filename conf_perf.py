@@ -356,11 +356,6 @@ perf_alg_set = {
             "alg": "calc_cpu_scale(4, 32)"
         },
         {
-            "name": "bgwriter_delay",
-            "alg": "int(calc_system_scores_scale(200, 3000))",
-            "unit_postfix": "ms"
-        },
-        {
             "name": "bgwriter_lru_maxpages",
             "alg": """\
                 int(
