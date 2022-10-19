@@ -26,12 +26,12 @@ perf_alg_set = {
         },
         {
             "name": "autovacuum_vacuum_threshold",
-            "alg": "int(calc_system_scores_scale(10000, 50000))",
+            "alg": "int(calc_system_scores_scale(1000, 20000))",
             "to_unit": "as_is"
         },
         {
             "name": "autovacuum_analyze_threshold",
-            "alg": "int(calc_system_scores_scale(5000, 10000))",
+            "alg": "int(calc_system_scores_scale(500, 10000))",
             "to_unit": "as_is"
         },
         {
@@ -103,6 +103,11 @@ perf_alg_set = {
         {
             "name": "maintenance_work_mem",
             "alg": "(total_ram_in_bytes * maintenance_mem_part * maintenance_conns_mem_part) / maint_max_conns"
+        },
+        {
+            "name": "old_snapshot_threshold",
+            "alg": "4320",      # [minutes], 3 days
+            "to_unit": "as_is"
         },
         # ----------------------------------------------------------------------------------
         # Write Ahead Log
@@ -218,7 +223,11 @@ perf_alg_set = {
         },
         {
             "name": "max_standby_streaming_delay",
-            "alg": "'90s' if replication_enabled else '0'",
+            "alg": """\
+                '90s' if duty_db == DutyDB.FINANCIAL and replication_enabled else \
+                '1800s' if duty_db == DutyDB.MIXED else \
+                '-1' \
+            """,
             "to_unit": "as_is"
         },
         {
@@ -283,7 +292,8 @@ perf_alg_set = {
         # Query Planning
         {
             "name": "effective_cache_size",
-            "alg": "total_ram_in_bytes - shared_buffers"
+            "alg": """total_ram_in_bytes - shared_buffers - \
+                UnitConverter.size_from(reserved_system_ram, system=UnitConverter.sys_iec)"""
         },
         {
             "name": "default_statistics_target",
@@ -365,6 +375,22 @@ perf_alg_set = {
                     )
                 )""",
             "to_unit": "as_is"
+        },
+        {
+            "name": "max_logical_replication_workers",
+            "alg": """\
+                calc_cpu_scale(4, 12) if duty_db == DutyDB.FINANCIAL else \
+                calc_cpu_scale(4, 16) if duty_db == DutyDB.MIXED else \
+                calc_cpu_scale(6, 24) \
+            """
+        },
+        {
+            "name": "max_sync_workers_per_subscription",
+            "alg": """\
+                calc_cpu_scale(2, 8) if duty_db == DutyDB.FINANCIAL else \
+                calc_cpu_scale(2, 12) if duty_db == DutyDB.MIXED else \
+                calc_cpu_scale(4, 16) \
+            """
         }
     ],
     "11": [
@@ -388,11 +414,80 @@ perf_alg_set = {
         {
             "name": "wal_keep_segments",
             "alg": "deprecated"
+        },
+        {
+            "__parent": "12"  # inheritance
+        },
+        {
+            "name": "autovacuum_vacuum_insert_threshold",
+            "alg": "int(calc_system_scores_scale(1000, 20000))",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "autovacuum_vacuum_insert_scale_factor",
+            "alg": "round(float(calc_system_scores_scale(0.01, 0.2)), 2)",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "logical_decoding_work_mem",
+            "alg": """\
+                int(
+                    calc_system_scores_scale(
+                        UnitConverter.size_from('64MB', system=UnitConverter.sys_pg),
+                        UnitConverter.size_from('8096MB', system=UnitConverter.sys_pg)
+                    )
+                )\
+            """,
+            "to_unit": "MB"
+        },
+        {
+            "name": "maintenance_io_concurrency",
+            "alg": """\
+                '2' if disk_type == DiskType.SATA else \
+                '4' if disk_type == DiskType.SAS else \
+                '128' \
+            """,
+            "to_unit": "as_is"
+        },
+        {
+            "name": "wal_keep_size",
+            "alg": """\
+                int(
+                    calc_system_scores_scale(
+                        UnitConverter.size_from('1024MB', system=UnitConverter.sys_pg),
+                        UnitConverter.size_from('16384MB', system=UnitConverter.sys_pg)
+                    )
+                ) \
+            """,
+            "to_unit": "MB"
+        },
+        {
+            "name": "hash_mem_multiplier",
+            "alg": """\
+                '1.2' if duty_db == DutyDB.FINANCIAL else \
+                '2.0' if duty_db == DutyDB.MIXED else \
+                '8.0' \
+            """,
+            "to_unit": "as_is"
         }
     ],
     "14": [
         {
             "__parent": "13"  # inheritance
+        },
+        {
+            "name": "client_connection_check_interval",
+            "alg": """\
+                '3s' if duty_db == DutyDB.FINANCIAL else \
+                '10s' if duty_db == DutyDB.MIXED else \
+                '30s'""",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "default_toast_compression",
+            "alg": """\
+                'pglz' if duty_db in (DutyDB.FINANCIAL, DutyDB.MIXED) else 'lz4'""",
+            "to_unit": "as_is"
         }
     ],
     "15": [

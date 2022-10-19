@@ -321,7 +321,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
             if v[0] in ('pg_14', 'pg_15'):
                 args = parser.parse_args([
                     '--output-file-name=%s.conf' % v[0],
-                    '--profile=profile_1c',
+                    '--conf-profiles=ext_perf,profile_1c',
                     '--pg-version=%s' % v[1],
                 ])
                 results[v[0]] = run_pgc(args, params.pg_params).result_data
@@ -330,10 +330,12 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 if err.find("No such container") > -1:
                     await DBOperations.init_containers(containers=[v])
                 time.sleep(3)
+                DBOperations.run_command(['docker', 'logs', v[0]])
                 params_values = await DBOperations.check_params(v, [
                     'from_collapse_limit',
                     'join_collapse_limit'
                 ])
+                self.assertTrue(params_values is not None)
                 for p in [
                     ['from_collapse_limit', '20'],
                     ['join_collapse_limit', '20']

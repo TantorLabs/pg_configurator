@@ -3,7 +3,6 @@ import csv
 import os
 import datetime
 import copy
-from enum import Enum
 import argparse
 import json
 import psutil
@@ -126,8 +125,9 @@ class PGConfigurator:
         "15": "settings_pg_15.csv"
     }
 
-    profiles = {
-        "profile_1c": "alg_set_1c"       # filename : dict name in file
+    conf_profiles = {
+        "profile_1c": "alg_set_1c",       # filename : dict name in file
+        "ext_perf": "ext_alg_set"
     }
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -177,6 +177,13 @@ class PGConfigurator:
 
         for ver, perf_alg_set in PGConfigurator.iterate_alg_set(tune_alg):
             # inheritance, redefinition, deprecation
+
+            if len([alg for alg in perf_alg_set if "__parent" in alg]) == 0:
+                prepared_tune_alg[ver] = [
+                    alg for alg in perf_alg_set \
+                    if not ("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
+                ]
+
             if len([alg for alg in perf_alg_set if "__parent" in alg]) > 0:
                 current_ver_deprecated_params = [
                     alg["name"] for alg in perf_alg_set if "alg" in alg and alg["alg"] == "deprecated"
@@ -224,7 +231,7 @@ class PGConfigurator:
                 max_maint_conns=16,
                 platform=Platform.LINUX,
                 common_conf=False,
-                profile=None
+                conf_profiles=None
         ):
         # =======================================================================================================
         # checks
@@ -307,12 +314,15 @@ class PGConfigurator:
         if self.ext_params is not None and len(self.ext_params) > 0:    # ext_params initialized in unit tests
             prepared_alg_set.extend(self.ext_params)
 
-        if profile is not None and len(profile) > 0:
-            prepared_alg_set.extend(
-                PGConfigurator.prepare_alg_set(
-                    globals()[self.profiles[profile]]
-                )[pg_version]
-            )
+        if conf_profiles is not None and len(conf_profiles) > 0:
+            for profile in conf_profiles.split(','):
+                if profile not in self.conf_profiles:
+                    raise NameError("Profile %s not found! See directory 'conf_profiles'" % profile)
+                prepared_alg_set.extend(
+                    PGConfigurator.prepare_alg_set(
+                        globals()[self.conf_profiles[profile]]
+                    )[pg_version]
+                )
 
         config_res = {}
         for param in prepared_alg_set:
@@ -325,22 +335,27 @@ class PGConfigurator:
                 config_res[param_name] = value
 
             if "alg" in param:
-                if "unit_postfix" in param:
-                    config_res[param_name] = str(eval(param["alg"])) + param["unit_postfix"]
-                else:
-                    if "to_unit" in param and param["to_unit"] == 'as_is':
-                        config_res[param_name] = str(eval(param["alg"]))
-                    elif "to_unit" in param and param["to_unit"] == 'quote':
-                        config_res[param_name] = "'%s'" % str(eval(param["alg"]))
+                try:
+                    # alg = param["alg"].rstrip().lstrip()
+                    if "unit_postfix" in param:
+                        config_res[param_name] = str(eval(param["alg"])) + param["unit_postfix"]
                     else:
-                        config_res[param_name] = str(
-                            UnitConverter.size_to(
-                                eval(param["alg"]),
-                                system=UnitConverter.sys_pg,
-                                unit=param["to_unit"] if "to_unit" in param is not None else None
+                        if "to_unit" in param and param["to_unit"] == 'as_is':
+                            config_res[param_name] = str(eval(param["alg"]))
+                        elif "to_unit" in param and param["to_unit"] == 'quote':
+                            config_res[param_name] = "'%s'" % str(eval(param["alg"]))
+                        else:
+                            config_res[param_name] = str(
+                                UnitConverter.size_to(
+                                    eval(param["alg"]),
+                                    system=UnitConverter.sys_pg,
+                                    unit=param["to_unit"] if "to_unit" in param is not None else None
+                                )
                             )
-                        )
-                        exec(param_name + '=' + str(eval(param["alg"])))
+                            exec(param_name + '=' + str(eval(param["alg"])))
+                except:
+                    print("Exception on processing: %s\n%s" % (param, exception_helper()))
+                    raise NameError("Invalid alg value")
 
         return dict(sorted(config_res.items()))
 
@@ -620,8 +635,8 @@ class PGConfigurator:
             default=""
         )
         parser.add_argument(
-            "--profile",
-            help="Select settings profile from \"conf_profiles\" directory",
+            "--conf-profiles",
+            help="Select settings profile from \"conf_profiles\" directory. Multiple values also supported",
             type=str,
             default=""
         )
@@ -697,7 +712,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         max_maint_conns=args.max_maint_conns,
         platform=args.platform,
         common_conf=args.common_conf,
-        profile=args.profile
+        conf_profiles=args.conf_profiles
     )
 
     out_conf = ''
