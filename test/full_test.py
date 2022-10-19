@@ -61,15 +61,6 @@ params = TestParams()
 
 
 class DBOperations:
-    @staticmethod
-    def recordset_to_list_flat(rs):
-        res = []
-        for rec in rs:
-            row = []
-            for _, v in dict(rec).items():
-                row.append(v)
-            res.append(row)
-        return res
 
     @staticmethod
     async def init_db(db_conn, db_name):
@@ -98,35 +89,44 @@ class DBOperations:
             print(exception_helper(show_traceback=True))
 
     @staticmethod
-    async def check_params(target_db):
+    async def check_params(container, settings_list=None):
+        data = None
+        db_conn = None
         try:
             conn_params = {
                 "host": params.test_db_host,
                 "database": 'postgres',
-                "port": target_db[2],
+                "port": container[2],
                 "user": 'postgres',
                 "password": params.test_db_user_password
             }
             db_conn = await asyncpg.connect(**conn_params)
-            data = DBOperations.recordset_to_list_flat(await db_conn.fetch(
-                """
+            query = """
                 SELECT
                     name,
                     setting AS value
                 FROM pg_settings
                 WHERE name in (
-                    'autovacuum_work_mem',
-                    'shared_buffers',
-                    'work_mem',
-                    'maintenance_work_mem'
+                    %s
                 )
                 ORDER BY name ASC
-                """
-            ))
-            await db_conn.close()
-            print(str(target_db) + " -> " + str(data))
+                """ % (
+                    """
+                        'autovacuum_work_mem',
+                        'shared_buffers',
+                        'work_mem',
+                        'maintenance_work_mem'
+                    """ if settings_list is None else ', '.join(["'" + v + "'" for v in settings_list])
+                )
+            print(query)
+            data = recordset_to_list_flat(await db_conn.fetch(query))
+            print(str(container) + " -> " + str(data))
         except:
             print(exception_helper(show_traceback=True))
+        finally:
+            if db_conn:
+                await db_conn.close()
+        return data
 
     @staticmethod
     def run_command(cmd, print_output=True):
@@ -143,9 +143,14 @@ class DBOperations:
         return out.decode("utf-8"), err.decode("utf-8")
 
     @staticmethod
-    async def init_containers(do_docker_pull=False):
+    async def init_containers(do_docker_pull=False, containers=[]):
         init_containers_res = True
-        for v in params.containers:
+
+        containers_for_processing = params.containers
+        if containers is not None and len(containers) > 0:
+            containers_for_processing = containers
+
+        for v in containers_for_processing:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             result = sock.connect_ex(('127.0.0.1', v[2]))
             sock.close()
@@ -190,6 +195,8 @@ class DBOperations:
         for v in params.containers:
             DBOperations.run_command(['docker', 'stop', v[0]])
             DBOperations.run_command(['docker', 'rm', '-f', v[0]])
+            # docker rm $(docker ps -a -f status=exited -q)
+            # docker volume prune
 
     @staticmethod
     def get_pgbench_results(pgbench_output: str) -> dict:
@@ -291,7 +298,7 @@ class UnitTest(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 'pgbench',
                 '-c', '8',
                 '-j', '4',
-                '-T', '100',
+                '-T', '10',
                 '-U', 'postgres',
                 '-h', '127.0.0.1',
                 '-p', str(target_db[2]),
@@ -305,13 +312,112 @@ class UnitTest(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
         print(str(json.dumps(results, indent=4)))
         passed_stages.append("test_03_run_pgbench")
 
-    async def test_10_settings_history(self):
+
+class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
+    async def test_01_profiles(self):
+        parser = PGConfigurator.get_arg_parser()
+        results = {}
+        for v in params.containers:
+            if v[0] in ('pg_14', 'pg_15'):
+                args = parser.parse_args([
+                    '--output-file-name=%s.conf' % v[0],
+                    '--profile=profile_1c',
+                    '--pg-version=%s' % v[1],
+                ])
+                results[v[0]] = run_pgc(args, params.pg_params).result_data
+                DBOperations.run_command(['docker', 'stop', v[0]])
+                _, err = DBOperations.run_command(['docker', 'start', v[0]])
+                if err.find("No such container") > -1:
+                    await DBOperations.init_containers(containers=[v])
+                time.sleep(3)
+                params_values = await DBOperations.check_params(v, [
+                    'from_collapse_limit',
+                    'join_collapse_limit'
+                ])
+                for p in [
+                    ['from_collapse_limit', '20'],
+                    ['join_collapse_limit', '20']
+                ]:
+                    self.assertTrue(p in params_values)
+                DBOperations.run_command(['docker', 'stop', v[0]])
+
+
+class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
+    async def test_01_history_params(self):
         parser = PGConfigurator.get_arg_parser()
         args = parser.parse_args([
             '--settings-history=15,9.6',
             '--debug'
         ])
-        self.assertTrue(run_pgc(args))
+        res = run_pgc(args)
+        self.assertTrue(res.result_code == ResultCode.DONE)
+        args = parser.parse_args([
+            '--specific-setting-history=max_parallel_maintenance_workers',
+            '--debug'
+        ])
+        res = run_pgc(args)
+        self.assertTrue(res.result_code == ResultCode.DONE)
+        self.assertTrue(res.result_data == json.loads("""
+            [
+                {
+                    "9.6": {
+                        "setting": "not exists",
+                        "value": "",
+                        "boot_val": "",
+                        "unit": ""
+                    }
+                },
+                {
+                    "10": {
+                        "setting": "not exists",
+                        "value": "",
+                        "boot_val": "",
+                        "unit": ""
+                    }
+                },
+                {
+                    "11": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "12": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "13": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "14": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "15": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                }
+            ]
+            """)
+        )
 
 
 if __name__ == '__main__':

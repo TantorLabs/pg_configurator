@@ -11,6 +11,7 @@ import socket
 from conf_perf import *
 from conf_common import *
 from common import *
+from conf_profiles import *
 
 PGC_VERSION = '22.10.17'
 
@@ -86,11 +87,6 @@ class UnitConverter:
             return round(float(val), 1)
 
 
-class BasicEnum():
-    def __str__(self):
-        return self.value
-
-
 class DutyDB(BasicEnum, Enum):
     STATISTIC = 'statistic'           # Low reliability, fast speed, long recovery
                                           # Purely analytical and large aggregations
@@ -129,11 +125,15 @@ class PGConfigurator:
         "14": "settings_pg_14.csv",
         "15": "settings_pg_15.csv"
     }
+
+    profiles = {
+        "profile_1c": "alg_set_1c"       # filename : dict name in file
+    }
+
     current_dir = os.path.dirname(os.path.realpath(__file__))
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output')
     args = {}
     ext_params = {}
-    # output_file_name = None
 
     @exception_handler
     def __init__(self, args, ext_params):
@@ -163,6 +163,44 @@ class PGConfigurator:
             if duty_db == DutyDB.FINANCIAL:
                 return "on"
 
+    @staticmethod
+    def iterate_alg_set(tune_alg) -> [str, dict]:
+        for alg_set_v in sorted(
+                [(ver, alg_set_v) for ver, alg_set_v in tune_alg.items()],
+                key=lambda x: float(x[0])
+        ):
+            yield alg_set_v[0], alg_set_v[1]
+
+    @staticmethod
+    def prepare_alg_set(tune_alg):
+        prepared_tune_alg = copy.deepcopy(tune_alg)
+
+        for ver, perf_alg_set in PGConfigurator.iterate_alg_set(tune_alg):
+            # inheritance, redefinition, deprecation
+            if len([alg for alg in perf_alg_set if "__parent" in alg]) > 0:
+                current_ver_deprecated_params = [
+                    alg["name"] for alg in perf_alg_set if "alg" in alg and alg["alg"] == "deprecated"
+                ]
+                prepared_tune_alg[ver] = [
+                    alg for alg in perf_alg_set \
+                        if not("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
+                ]
+
+                alg_set_current_version = prepared_tune_alg[ver]
+                alg_set_from_parent = prepared_tune_alg[
+                        [alg for alg in perf_alg_set if "__parent" in alg][0]["__parent"]
+                ]
+
+                prepared_tune_alg[ver].extend([
+                        alg for alg in alg_set_from_parent
+                        if alg["name"] not in [
+                            alg["name"] for alg in alg_set_current_version
+                        ] and alg["name"] not in current_ver_deprecated_params
+                    ]
+                )
+
+        return prepared_tune_alg
+
     def make_conf(
                 self,
                 cpu_cores,
@@ -170,7 +208,7 @@ class PGConfigurator:
                 disk_type=DiskType.SAS,
                 duty_db=DutyDB.MIXED,
                 replication_enabled=True,
-                pg_version="10",
+                pg_version="15",
                 reserved_ram_percent=10,           # for calc of total_ram_in_bytes
                 reserved_system_ram='256Mi',       # for calc of total_ram_in_bytes
                 shared_buffers_part=0.7,
@@ -185,15 +223,16 @@ class PGConfigurator:
                 min_maint_conns=4,                 # maintenance connections
                 max_maint_conns=16,
                 platform=Platform.LINUX,
-                common_conf=False
+                common_conf=False,
+                profile=None
         ):
-        #=======================================================================================================
+        # =======================================================================================================
         # checks
         if round(shared_buffers_part + client_mem_part + maintenance_mem_part, 1) != 1.0:
             raise NameError("Invalid memory parts size")
         if round(autovacuum_workers_mem_part + maintenance_conns_mem_part, 1) != 1.0:
             raise NameError("Invalid memory parts size for maintenance tasks")
-        #=======================================================================================================
+        # =======================================================================================================
         # consts
         page_size = 8192
         max_cpu_cores = 96      # maximum of CPU cores in system, 4 CPU with 12 cores=>24 threads = 96
@@ -202,7 +241,7 @@ class PGConfigurator:
         max_ram_in_bytes = UnitConverter.size_from(max_ram, system=UnitConverter.sys_iec) * \
             ((100 - reserved_ram_percent) / 100) - \
             UnitConverter.size_from(reserved_system_ram, system=UnitConverter.sys_iec)
-        #=======================================================================================================
+        # =======================================================================================================
         # pre-calculated vars
         total_ram_in_bytes = UnitConverter.size_from(ram_value, system=UnitConverter.sys_iec) * \
             ((100 - reserved_ram_percent) / 100) - \
@@ -215,7 +254,7 @@ class PGConfigurator:
                 (max_maint_conns - min_maint_conns) + min_maint_conns,
             min_maint_conns
         )
-        #=======================================================================================================
+        # =======================================================================================================
         # system scores calculation in percents
         cpu_scores = (total_cpu_cores * 100) / max_cpu_cores
         ram_scores = (total_ram_in_bytes * 100) / max_ram_in_bytes
@@ -237,7 +276,7 @@ class PGConfigurator:
 
         system_scores = (system_scores * 100) / system_scores_max   # 0-100
         # where 100 if system has max_cpu_cores, max_ram and SSD disk (4 disks in RAID10 for example)
-        #=======================================================================================================
+        # =======================================================================================================
 
         def calc_cpu_scale(v_min, v_max):
             return max(
@@ -257,55 +296,25 @@ class PGConfigurator:
                 v_min
             )
 
-        def iterate_alg_set(tune_alg) -> [str, dict]:
-            for alg_set_v in sorted(
-                    [(ver, alg_set_v) for ver, alg_set_v in tune_alg.items()],
-                    key=lambda x: float(x[0])
-            ):
-                yield alg_set_v[0], alg_set_v[1]
-
-        def prepare_alg_set(tune_alg):
-            prepared_tune_alg = copy.deepcopy(tune_alg)
-
-            for ver, perf_alg_set in iterate_alg_set(tune_alg):
-                # inheritance, redefinition, deprecation
-                if len([alg for alg in perf_alg_set if "__parent" in alg]) > 0:
-                    current_ver_deprecated_params = [
-                        alg["name"] for alg in perf_alg_set if "alg" in alg and alg["alg"] == "deprecated"
-                    ]
-                    prepared_tune_alg[ver] = [
-                        alg for alg in perf_alg_set \
-                            if not("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
-                    ]
-
-                    alg_set_current_version = prepared_tune_alg[ver]
-                    alg_set_from_parent = prepared_tune_alg[
-                            [alg for alg in perf_alg_set if "__parent" in alg][0]["__parent"]
-                    ]
-
-                    prepared_tune_alg[ver].extend([
-                            alg for alg in alg_set_from_parent
-                            if alg["name"] not in [
-                                alg["name"] for alg in alg_set_current_version
-                            ] and alg["name"] not in current_ver_deprecated_params
-                        ]
-                    )
-
-            return prepared_tune_alg
-
-        config_res = {}
-
         if common_conf:
-            prepared_alg_set = prepare_alg_set(perf_alg_set)[pg_version]
+            prepared_alg_set = PGConfigurator.prepare_alg_set(perf_alg_set)[pg_version]
             prepared_alg_set.extend(
-                prepare_alg_set(common_alg_set)[pg_version]
+                PGConfigurator.prepare_alg_set(common_alg_set)[pg_version]
             )
         else:
-            prepared_alg_set = prepare_alg_set(perf_alg_set)[pg_version]
+            prepared_alg_set = PGConfigurator.prepare_alg_set(perf_alg_set)[pg_version]
 
-        if self.ext_params is not None and len(self.ext_params) > 0:
+        if self.ext_params is not None and len(self.ext_params) > 0:    # ext_params initialized in unit tests
             prepared_alg_set.extend(self.ext_params)
 
+        if profile is not None and len(profile) > 0:
+            prepared_alg_set.extend(
+                PGConfigurator.prepare_alg_set(
+                    globals()[self.profiles[profile]]
+                )[pg_version]
+            )
+
+        config_res = {}
         for param in prepared_alg_set:
             param_name = param["name"]
             value = param["alg"] if "alg" in param else param["const"]
@@ -333,9 +342,10 @@ class PGConfigurator:
                         )
                         exec(param_name + '=' + str(eval(param["alg"])))
 
-        return config_res
+        return dict(sorted(config_res.items()))
 
-    def settings_history(self, list_versions):
+    def settings_history(self, list_versions) -> PGConfiguratorResult:
+        res = PGConfiguratorResult
         configs = []
         for v in sorted([ver for ver in list_versions], key=lambda x: get_major_version(x)):
             with open(
@@ -383,6 +393,65 @@ class PGConfigurator:
                     str(configs[0][k]),
                     str(v)
                 ))
+        res.result_code = ResultCode.DONE
+        res.result_data = {
+            "Deprecated parameters": {
+                v: configs[0][v] for v in [k for k, _ in configs[0].items() if k not in configs[1]]
+            },
+            "New parameters": {
+                v: configs[1][v] for v in [k for k, _ in configs[1].items() if k not in configs[0]]
+            },
+            "Changed boot_val": {
+                k: {
+                    "old": configs[0][k]["boot_val"],
+                    "new": v["boot_val"]
+                } for k, v in configs[1].items()
+                if k in configs[0] and v["boot_val"] != configs[0][k]["boot_val"]
+            },
+            "Changed unit": {
+                k: {
+                    "old": configs[0][k]["unit"],
+                    "new": v["unit"]
+                } for k, v in configs[1].items()
+                if k in configs[0] and v["unit"] != configs[0][k]["unit"]
+            }
+        }
+        return res
+
+    def specific_setting_history(self, setting_name) -> PGConfiguratorResult:
+        res = PGConfiguratorResult
+        configs = []
+        for v in sorted([ver for ver in self.known_versions], key=lambda x: get_major_version(x)):
+            with open(
+                    os.path.join(self.current_dir, 'pg_settings_history', self.known_versions[v]),
+                    'r',
+                    encoding="utf-8"
+            ) as f:
+                reader = csv.reader(f)
+                next(reader, None)  # skip header
+                conf = {}
+                for row in reader:
+                    if row[0] == setting_name:
+                        conf[v] = {
+                            "setting": row[0],
+                            "value": row[1],
+                            "boot_val": row[3],
+                            "unit": row[4]
+                        }
+                        continue
+                if len(conf) == 0:
+                    conf[v] = {
+                        "setting": "not exists",
+                        "value": "",
+                        "boot_val": "",
+                        "unit": ""
+                    }
+                configs.append(conf)
+
+        res.result_code = ResultCode.DONE
+        res.result_data = configs
+        print(str(json.dumps(configs, indent=4)))
+        return res
 
     @staticmethod
     def get_arg_parser():
@@ -550,11 +619,25 @@ class PGConfigurator:
             type=str,
             default=""
         )
+        parser.add_argument(
+            "--profile",
+            help="Select settings profile from \"conf_profiles\" directory",
+            type=str,
+            default=""
+        )
+        parser.add_argument(
+            "--specific-setting-history",
+            help="Show specific specific: for example --specific-setting-history=max_parallel_maintenance_workers",
+            type=str,
+            default=""
+        )
 
         return parser
 
 
-def run_pgc(external_args=None, ext_params=None):
+def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
+    res = PGConfiguratorResult
+
     if external_args is not None:
         args = external_args
         pgc = PGConfigurator(external_args, ext_params)
@@ -587,8 +670,10 @@ def run_pgc(external_args=None, ext_params=None):
             if v not in pgc.known_versions:
                 print("Unknown version: %s" % v)
                 sys.exit(0)
-        pgc.settings_history(list_versions)
-        return True
+        return pgc.settings_history(list_versions)
+
+    if args.specific_setting_history != '':
+        return pgc.specific_setting_history(args.specific_setting_history)
 
     conf = pgc.make_conf(
         args.db_cpu,
@@ -611,7 +696,8 @@ def run_pgc(external_args=None, ext_params=None):
         min_maint_conns=args.min_maint_conns,
         max_maint_conns=args.max_maint_conns,
         platform=args.platform,
-        common_conf=args.common_conf
+        common_conf=args.common_conf,
+        profile=args.profile
     )
 
     out_conf = ''
@@ -656,7 +742,10 @@ def run_pgc(external_args=None, ext_params=None):
     else:
         print(out_conf)
 
-    return True
+    res.result_data = conf
+    res.result_code = ResultCode.DONE
+
+    return res
 
 
 if __name__ == "__main__":

@@ -1,14 +1,20 @@
+# Installation
+```bash
+apt install -y python3-pip
+pip3 install -r requirements.txt
+```
+
 # Usage
 
-```
-git clone https://github.com/masterlee998/pg_configurator
+```bash
+git clone https://github.com/O2eg/pg_configurator
 cd pg_configurator
 
 # Show help
-python3.6 pg_configurator.py -h
+python3 pg_configurator.py -h
 
 # Minimal usage
-python3.6 pg_configurator.py \
+python3 pg_configurator.py \
         --db-cpu=40 \
         --db-ram=128Gi \
         --db-disk-type=SSD \
@@ -16,7 +22,7 @@ python3.6 pg_configurator.py \
         --pg-version=9.6
 
 # Customized usage
-python3.6 pg_configurator.py \
+python3 pg_configurator.py \
         --db-cpu=40 \
         --db-ram=128Gi \
         --db-disk-type=SSD \

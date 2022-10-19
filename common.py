@@ -3,6 +3,24 @@ import inspect
 import traceback
 from pkg_resources import parse_version as version
 import re
+from enum import Enum
+
+
+class BasicEnum:
+    def __str__(self):
+        return self.value
+
+
+class ResultCode(BasicEnum, Enum):
+    DONE = 'done'
+    FAIL = 'fail'
+    UNKNOWN = 'unknown'
+
+
+class PGConfiguratorResult:
+    params = None            # JSON
+    result_code = ResultCode.UNKNOWN
+    result_data = None
 
 
 def exception_helper(show_traceback=True):
@@ -41,3 +59,13 @@ def print_header(header):
     print("=".join(['=' * 100]))
     print(header)
     print("=".join(['=' * 100]))
+
+
+def recordset_to_list_flat(rs):
+    res = []
+    for rec in rs:
+        row = []
+        for _, v in dict(rec).items():
+            row.append(v)
+        res.append(row)
+    return res
