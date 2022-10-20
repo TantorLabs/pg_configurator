@@ -325,6 +325,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     '--pg-version=%s' % v[1],
                 ])
                 results[v[0]] = run_pgc(args, params.pg_params).result_data
+                print(str(json.dumps(results, indent=4)))
                 DBOperations.run_command(['docker', 'stop', v[0]])
                 _, err = DBOperations.run_command(['docker', 'start', v[0]])
                 if err.find("No such container") > -1:

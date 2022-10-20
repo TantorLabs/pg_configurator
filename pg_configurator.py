@@ -12,6 +12,7 @@ from conf_common import *
 from common import *
 from conf_profiles import *
 
+
 PGC_VERSION = '22.10.17'
 
 
@@ -172,39 +173,41 @@ class PGConfigurator:
             yield alg_set_v[0], alg_set_v[1]
 
     @staticmethod
-    def prepare_alg_set(tune_alg):
+    def prepare_alg_set(tune_alg, source_name):
+        print("Called prepare_alg_set for '%s'" % source_name)
         prepared_tune_alg = copy.deepcopy(tune_alg)
 
         for ver, perf_alg_set in PGConfigurator.iterate_alg_set(tune_alg):
             # inheritance, redefinition, deprecation
 
-            if len([alg for alg in perf_alg_set if "__parent" in alg]) == 0:
-                prepared_tune_alg[ver] = [
-                    alg for alg in perf_alg_set \
-                    if not ("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
-                ]
+            current_ver_deprecated_params = [
+                alg["name"] for alg in perf_alg_set if "alg" in alg and alg["alg"] == "deprecated"
+            ]
 
+            prepared_tune_alg[ver] = [
+                p for p in prepared_tune_alg[ver] if 'name' in p and p['name'] not in current_ver_deprecated_params
+            ]
+
+            prepared_tune_alg[ver] = [
+                alg for alg in perf_alg_set \
+                if not("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
+            ]
+
+            alg_set_current_version = prepared_tune_alg[ver]
+
+            alg_set_from_parent = []
             if len([alg for alg in perf_alg_set if "__parent" in alg]) > 0:
-                current_ver_deprecated_params = [
-                    alg["name"] for alg in perf_alg_set if "alg" in alg and alg["alg"] == "deprecated"
-                ]
-                prepared_tune_alg[ver] = [
-                    alg for alg in perf_alg_set \
-                        if not("alg" in alg and alg["alg"] == "deprecated") and "__parent" not in alg
-                ]
-
-                alg_set_current_version = prepared_tune_alg[ver]
                 alg_set_from_parent = prepared_tune_alg[
                         [alg for alg in perf_alg_set if "__parent" in alg][0]["__parent"]
                 ]
 
-                prepared_tune_alg[ver].extend([
-                        alg for alg in alg_set_from_parent
-                        if alg["name"] not in [
-                            alg["name"] for alg in alg_set_current_version
-                        ] and alg["name"] not in current_ver_deprecated_params
-                    ]
-                )
+            prepared_tune_alg[ver].extend([
+                    alg for alg in alg_set_from_parent
+                    if "name" in alg and alg["name"] not in [
+                        alg["name"] for alg in alg_set_current_version
+                    ] and alg["name"] not in current_ver_deprecated_params
+                ]
+            )
 
         return prepared_tune_alg
 
@@ -303,31 +306,55 @@ class PGConfigurator:
                 v_min
             )
 
-        if common_conf:
-            prepared_alg_set = PGConfigurator.prepare_alg_set(perf_alg_set)[pg_version]
-            prepared_alg_set.extend(
-                PGConfigurator.prepare_alg_set(common_alg_set)[pg_version]
-            )
-        else:
-            prepared_alg_set = PGConfigurator.prepare_alg_set(perf_alg_set)[pg_version]
-
-        if self.ext_params is not None and len(self.ext_params) > 0:    # ext_params initialized in unit tests
-            prepared_alg_set.extend(self.ext_params)
-
+        # Apply profiles to perf_alg_set
         if conf_profiles is not None and len(conf_profiles) > 0:
             for profile in conf_profiles.split(','):
                 if profile not in self.conf_profiles:
                     raise NameError("Profile %s not found! See directory 'conf_profiles'" % profile)
-                prepared_alg_set.extend(
-                    PGConfigurator.prepare_alg_set(
-                        globals()[self.conf_profiles[profile]]
-                    )[pg_version]
-                )
+                for k, v in perf_alg_set.items():
+                    if k in globals()[self.conf_profiles[profile]]:
+                        perf_alg_set[k].extend(
+                            globals()[self.conf_profiles[profile]][k]
+                        )
+
+        d1 = {}
+        # Merge params in versions to avoid duplicates
+        for ver, params in perf_alg_set.items():
+            d1[ver] = {
+                d["name"]: {
+                    k: v for k, v in d.items() if k != 'name'
+                } for d in perf_alg_set[ver] if "name" in d
+            }
+
+        d2 = {}
+        for ver, params in perf_alg_set.items():
+            d2[ver] = {"__parent": d["__parent"] for d in perf_alg_set[ver] if "__parent" in d}
+
+        perf_alg_set_res = {}
+        for ver, param in d2.items():
+            perf_alg_set_res[ver] = [
+                {k: v for k, v in param.items() if isinstance(v, str)}
+            ]
+
+        for ver, param in d1.items():
+            perf_alg_set_res[ver].extend([{**{"name": k}, **v} for k, v in param.items() if isinstance(v, dict)])
+
+        prepared_alg_set = PGConfigurator.prepare_alg_set(perf_alg_set_res, 'conf_perf')[pg_version]
+
+        if common_conf:
+            prepared_alg_set.extend(
+                PGConfigurator.prepare_alg_set(common_alg_set, 'conf_common')[pg_version]
+            )
+
+        if self.ext_params is not None and len(self.ext_params) > 0:    # ext_params initialized in unit tests
+            prepared_alg_set.extend(self.ext_params)
 
         config_res = {}
         for param in prepared_alg_set:
+            if "name" not in param:
+                continue
             param_name = param["name"]
-            value = param["alg"] if "alg" in param else param["const"]
+            value = param["alg"].rstrip().lstrip() if "alg" in param else param["const"]
 
             if ('debug_mode' in vars() or 'debug_mode' in globals()) and self.args.debug_mode:
                 print("Processing: %s = %s" % (param_name, value))
@@ -336,7 +363,6 @@ class PGConfigurator:
 
             if "alg" in param:
                 try:
-                    # alg = param["alg"].rstrip().lstrip()
                     if "unit_postfix" in param:
                         config_res[param_name] = str(eval(param["alg"])) + param["unit_postfix"]
                     else:
