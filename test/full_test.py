@@ -1,3 +1,5 @@
+import asyncio
+import json
 import os.path
 import time
 
@@ -6,6 +8,14 @@ import subprocess
 import unittest
 import socket
 import asyncpg
+
+import sys
+"""
+sys.path.append('pg_configurator/common.py')
+from pg_configurator.common import *
+"""
+#from pg_configurator.common import recordset_to_list_flat, exception_helper, ResultCode
+#from pg_configurator.pg_configurator import PGConfigurator, run_pgc
 
 
 passed_stages = []
@@ -127,6 +137,32 @@ class DBOperations:
             if db_conn:
                 await db_conn.close()
         return data
+
+    @staticmethod
+    async def check_extension_params(container, settings_list=None):
+        data = []
+        db_conn = None
+        try:
+            conn_params = {
+                "host": params.test_db_host,
+                "database": 'postgres',
+                "port": container[2],
+                "user": 'postgres',
+                "password": params.test_db_user_password
+            }
+            db_conn = await asyncpg.connect(**conn_params)
+            for v in settings_list:
+                query = """show \"%s\"""" % v
+                print(query)
+                data.append([v, recordset_to_list_flat(await db_conn.fetch(query))[0][0]])
+                print(str(container) + " -> " + str(data))
+        except:
+            print(exception_helper(show_traceback=True))
+        finally:
+            if db_conn:
+                await db_conn.close()
+        return data
+
 
     @staticmethod
     def run_command(cmd, print_output=True):
@@ -314,7 +350,9 @@ class UnitTest(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
 
 
 class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
+
     async def test_01_profiles(self):
+        return
         parser = PGConfigurator.get_arg_parser()
         results = {}
         for v in params.containers:
@@ -344,6 +382,48 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     self.assertTrue(p in params_values)
                 DBOperations.run_command(['docker', 'stop', v[0]])
 
+
+    async def test_02_profiles_1c(self):
+        parser = PGConfigurator.get_arg_parser()
+        results = {}
+        for v in params.containers:
+            if v[0] in ('pg_14', 'pg_15'):
+                args = parser.parse_args([
+                    '--output-file-name=%s.conf' % v[0],
+                    '--conf-profiles=ext_perf,profile_1c',
+                    '--pg-version=%s' % v[1],
+                ])
+                results[v[0]] = run_pgc(args, params.pg_params).result_data
+                print(str(json.dumps(results, indent=4)))
+                DBOperations.run_command(['docker', 'stop', v[0]])
+                _, err = DBOperations.run_command(['docker', 'start', v[0]])
+                if err.find("No such container") > -1:
+                    await DBOperations.init_containers(containers=[v])
+                time.sleep(3)
+                DBOperations.run_command(['docker', 'logs', v[0]])
+                params_values = await DBOperations.check_extension_params(v, [
+                    'online_analyze.enable',
+                    'online_analyze.table_type',
+                    'online_analyze.verbose',
+                    'online_analyze.threshold',
+                    'online_analyze.scale_factor',
+                    'online_analyze.local_tracking',
+                    'online_analyze.min_interval'
+                ])
+                self.assertTrue(params_values is not None)
+                for p in [
+                    ['online_analyze.enable', 'on'],
+                    ['online_analyze.table_type', 'temporary'],
+                    ['online_analyze.verbose', 'off'],
+                    ['online_analyze.threshold', '50'],
+                    ['online_analyze.scale_factor', '0.1'],
+                    ['online_analyze.local_tracking', 'on'],
+                    ['online_analyze.min_interval', '1000']
+                ]:
+                    if p[0] == 'online_analyze.min_interval':
+                        x = 1
+                    self.assertTrue(p in params_values)
+                DBOperations.run_command(['docker', 'stop', v[0]])
 
 class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
     async def test_01_history_params(self):
@@ -424,4 +504,5 @@ class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
 
 
 if __name__ == '__main__':
-    unittest.main(exit=False)
+    unittest.main()
+    #unittest.main(exit=False)

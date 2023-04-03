@@ -772,11 +772,12 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         out_conf = json.dumps(patroni_conf, indent=4)
 
     if args.output_file_name is not None:
-        #if os.path.exists(args.output_file_name):
-        #    os.rename(
-        #        args.output_file_name,
-        #        args.output_file_name + "_" + str(datetime.datetime.now().timestamp()).split('.')[0]
-        #    )
+        if os.path.exists(args.output_file_name):
+            os.rename(
+                args.output_file_name,
+                args.output_file_name + "_" + str(datetime.datetime.now().timestamp()).split('.')[0]
+            )
+
         with open(args.output_file_name, "w") as output_file_name:
             output_file_name.write(out_conf)
         print("pgconfigurator finished!")

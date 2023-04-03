@@ -15,6 +15,34 @@ alg_set_1c = {
         {
             "name": "escape_string_warning",
             "const": "on"
+        },
+        {
+            "name": "online_analyze.enable",
+            "const": "on"
+        },
+        {
+            "name": "online_analyze.table_type",
+            "const": "temporary"
+        },
+        {
+            "name": "online_analyze.verbose",
+            "const": "off"
+        },
+        {
+            "name": "online_analyze.threshold",
+            "const": "50"
+        },
+        {
+            "name": "online_analyze.scale_factor",
+            "const": "0.1"
+        },
+        {
+            "name": "online_analyze.local_tracking",
+            "const": "on"
+        },
+        {
+            "name": "online_analyze.min_interval",
+            "const": "1000"
         }
     ],
     "10": [
