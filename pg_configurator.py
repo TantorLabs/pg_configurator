@@ -140,7 +140,8 @@ class PGConfigurator:
     def __init__(self, args, ext_params):
         self.args = args
         self.ext_params = ext_params
-        if not(args.output_file_name.find("""/""") != -1 or args.output_file_name.find("""\\""") != -1):
+        if not (args.output_file_name.find("""/""") > -1 or args.output_file_name.find("""\\""") > -1) \
+                and args.output_file_name != '':
             args.output_file_name = os.path.join(self.output_dir, args.output_file_name)
 
         dir_exists = os.path.exists(self.output_dir)
@@ -771,15 +772,19 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         }
         out_conf = json.dumps(patroni_conf, indent=4)
 
-    if args.output_file_name is not None:
-        if os.path.exists(args.output_file_name):
-            os.rename(
-                args.output_file_name,
-                args.output_file_name + "_" + str(datetime.datetime.now().timestamp()).split('.')[0]
-            )
+    if args.output_file_name != '':
+        if os.path.isdir(args.output_file_name):
+            print("--output-file-name is a directory!")
+            print(out_conf)
+        else:
+            if os.path.exists(args.output_file_name):
+                os.rename(
+                    args.output_file_name,
+                    args.output_file_name + "_" + str(datetime.datetime.now().timestamp()).split('.')[0]
+                )
 
-        with open(args.output_file_name, "w") as output_file_name:
-            output_file_name.write(out_conf)
+            with open(args.output_file_name, "w") as output_file_name:
+                output_file_name.write(out_conf)
         print("pgconfigurator finished!")
     else:
         print(out_conf)

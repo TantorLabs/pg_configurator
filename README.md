@@ -31,7 +31,7 @@ apt -y install postgresql-client-15
 
 # Usage
 ```bash
-git clone https://github.com/O2eg/pg_configurator
+git clone https://github.com/TantorLabs/pg_configurator.git
 cd pg_configurator
 
 # Show help
