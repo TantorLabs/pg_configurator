@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 import csv
 import os
 import datetime
@@ -7,13 +6,11 @@ import argparse
 import json
 import psutil
 import socket
-from conf_perf import *
-from conf_common import *
-from common import *
-from conf_profiles import *
-
-
-PGC_VERSION = '22.10.17'
+from pg_configurator.conf_perf import *
+from pg_configurator.conf_common import *
+from pg_configurator.common import *
+from pg_configurator.conf_profiles import *
+from pg_configurator.version import __version__
 
 
 class UnitConverter:
@@ -132,7 +129,7 @@ class PGConfigurator:
     }
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
-    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output')
+    output_dir = os.getcwd()
     args = {}
     ext_params = {}
 
@@ -142,11 +139,8 @@ class PGConfigurator:
         self.ext_params = ext_params
         if not (args.output_file_name.find("""/""") > -1 or args.output_file_name.find("""\\""") > -1) \
                 and args.output_file_name != '':
-            args.output_file_name = os.path.join(self.output_dir, args.output_file_name)
-
-        dir_exists = os.path.exists(self.output_dir)
-        if not dir_exists:
-            os.makedirs(self.output_dir)
+            args.output_file_name = os.path.abspath(os.path.join(self.output_dir,
+                                                                 args.output_file_name))
 
     @staticmethod
     def calc_synchronous_commit(duty_db, replication_enabled):
@@ -700,7 +694,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         print("#-----------------------------------")
 
     if args.version:
-        print("Version %s" % (PGC_VERSION))
+        print("Version %s" % (__version__))
         return True
 
     if args.settings_history != '':
@@ -746,7 +740,7 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
     if args.output_format == OutputFormat.CONF:
         header = """#   pgconfigurator version %s started on %s at %s
     #   =============> Parameters\n""" % (
-            PGC_VERSION, socket.gethostname(),
+            __version__, socket.gethostname(),
             datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
         )
         # if args.output_file_name is None: print(header)
@@ -793,7 +787,3 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
     res.result_code = ResultCode.DONE
 
     return res
-
-
-if __name__ == "__main__":
-    run_pgc()
