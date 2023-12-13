@@ -3,7 +3,7 @@ import json
 import os.path
 import time
 
-from pg_configurator import *
+from pg_configurator.configurator import *
 import subprocess
 import unittest
 import socket
@@ -29,7 +29,7 @@ class TestParams:
     test_db_name = 'test_db'
     test_scale = '10'
     test_threads = 4
-    current_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output')
 
     containers = [
         ['pg_9_6', '9.6', 5480],
@@ -65,6 +65,8 @@ class TestParams:
             self.test_scale = os.environ["TEST_SCALE"]
         if os.environ.get('TEST_THREADS') is not None:
             self.test_threads = os.environ["TEST_THREADS"]
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
 
 params = TestParams()
@@ -201,8 +203,8 @@ class DBOperations:
                 DBOperations.run_command(['docker',  'run',
                      '-p', '%s:5432' % str(v[2]),
                      '--name', v[0],
-                     '-v', '%s:/tmp' % params.current_dir,
-                     '-v', '%s.conf:/etc/postgresql/postgresql.conf' % os.path.join(params.current_dir, 'output', v[0]),
+                     '-v', '%s:/tmp' % params.output_dir,
+                     '-v', '%s.conf:/etc/postgresql/postgresql.conf' % os.path.join(params.output_dir, v[0]),
                      '-e', 'POSTGRES_PASSWORD=%s' % params.test_db_user_password,
                      '-e', 'POSTGRES_HOST_AUTH_METHOD=md5',
                      '-d', 'postgres:%s' % v[1],
@@ -279,7 +281,7 @@ class UnitTest(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
         parser = PGConfigurator.get_arg_parser()
         for v in params.containers:
             args = parser.parse_args([
-                '--output-file-name=%s.conf' % v[0],
+                '--output-file-name=%s.conf' % os.path.join(params.output_dir, v[0]),
                 '--pg-version=%s' % v[1],
             ])
             self.assertTrue(run_pgc(args, params.pg_params))
@@ -358,7 +360,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
         for v in params.containers:
             if v[0] in ('pg_14', 'pg_15'):
                 args = parser.parse_args([
-                    '--output-file-name=%s.conf' % v[0],
+                    '--output-file-name=%s.conf' % os.path.join(params.output_dir, v[0]),
                     '--conf-profiles=ext_perf,profile_1c',
                     '--pg-version=%s' % v[1],
                 ])
@@ -389,7 +391,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
         for v in params.containers:
             if v[0] in ('pg_14', 'pg_15'):
                 args = parser.parse_args([
-                    '--output-file-name=%s.conf' % v[0],
+                    '--output-file-name=%s.conf' % os.path.join(params.output_dir, v[0]),
                     '--conf-profiles=ext_perf,profile_1c',
                     '--pg-version=%s' % v[1],
                 ])
