@@ -500,6 +500,14 @@ class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                         "boot_val": "2",
                         "unit": ""
                     }
+                },
+                {
+                    "16": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
                 }
             ]
             """)
