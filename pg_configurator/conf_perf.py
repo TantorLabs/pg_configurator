@@ -498,5 +498,14 @@ perf_alg_set = {
             "name": "stats_temp_directory",
             "alg": "deprecated"
         }
+    ],
+    "16": [
+        {
+            "__parent": "15"  # inheritance
+        },
+        {
+            "name": "max_parallel_apply_workers_per_subscription",
+            "alg": "calc_cpu_scale(4, 16)"
+        }
     ]
 }
