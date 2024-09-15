@@ -9,3 +9,4 @@ venv/
 .idea/*
 *.tar
 *.tar.gz
+.venv/*
