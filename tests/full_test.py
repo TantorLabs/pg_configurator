@@ -415,13 +415,13 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 ])
                 self.assertTrue(params_values is not None)
                 for p in [
-                    ['online_analyze.enable', 'on'],
+                    ['online_analyze.enable', 'off'],
                     ['online_analyze.table_type', 'temporary'],
                     ['online_analyze.verbose', 'off'],
-                    ['online_analyze.threshold', '50'],
+                    ['online_analyze.threshold', '500'],
                     ['online_analyze.scale_factor', '0.1'],
                     ['online_analyze.local_tracking', 'on'],
-                    ['online_analyze.min_interval', '1000']
+                    ['online_analyze.min_interval', '10000']
                 ]:
                     if p[0] == 'online_analyze.min_interval':
                         x = 1

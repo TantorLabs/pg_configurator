@@ -4,11 +4,20 @@ common_alg_set = {
         # Extensions
         {
             "name": "shared_preload_libraries",
-            "const": "'pg_stat_statements,auto_explain'"
+            "alg": """\
+                'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze' if workload_db == DutyDB.ERP1C else \
+                'pg_stat_statements,auto_explain' """,
+            "to_unit": "as_is"
         },
+        # The auto_explain module provides a means for logging execution plans of slow statements automatically,
+        # without having to run EXPLAIN by hand.
         {
             "name": "auto_explain.log_min_duration",
-            "const": "'3s'"
+            "alg":  """\
+                '3s' if workload_db == DutyDB.FINANCIAL else \
+                '5s' if workload_db in [DutyDB.MIXED, DutyDB.ERP1C] else \
+                '30s' """,
+            "to_unit": "as_is"
         },
         {
             "name": "auto_explain.log_analyze",
@@ -27,18 +36,36 @@ common_alg_set = {
             "const": "text"
         },
         {
+            "name": "auto_explain.log_nested_statements",
+            "const": "true"
+        },
+        # The pg_stat_statements module provides a means for tracking planning
+        # and execution statistics of all SQL statements executed by a server.
+        {
             "name": "pg_stat_statements.max",
-            "const": "1000"
+            "alg":  """\
+                '3000' if workload_db == DutyDB.FINANCIAL else \
+                '5000' if workload_db == DutyDB.MIXED else \
+                '7000' """,
+            "to_unit": "as_is"
         },
         {
             "name": "pg_stat_statements.track",
-            "const": "all"
+            "const": "top"
         },
         # ----------------------------------------------------------------------------------
         # Logging
         {
             "name": "logging_collector",
             "const": "on"
+        },
+        {
+            "name": "log_truncate_on_rotation",
+            "const": "on"
+        },
+        {
+            "name": "log_rotation_age",
+            "const": "1d"
         },
         {
             "name": "log_destination",
@@ -51,14 +78,6 @@ common_alg_set = {
         {
             "name": "log_filename",
             "const": "'postgresql-%Y-%m-%d_%H%M%S.log'"
-        },
-        {
-            "name": "log_truncate_on_rotation",
-            "const": "on"
-        },
-        {
-            "name": "log_rotation_age",
-            "const": "1d"
         },
         {
             "name": "log_rotation_size",
@@ -74,11 +93,20 @@ common_alg_set = {
         },
         {
             "name": "log_min_duration_statement",
-            "const": "3000"
+            "alg":  """\
+                '3s' if workload_db == DutyDB.FINANCIAL else \
+                '5s' if workload_db == DutyDB.MIXED else \
+                '30s' """,
+            "to_unit": "as_is"
         },
         {
             "name": "log_duration",
             "const": "off"
+        },
+        # Controls information prefixed to each log line for pg-monitor.
+        {
+            "name": "log_line_prefix",
+            "const": "%m [%p:%v] [%d] %r %a "
         },
         {
             "name": "log_lock_waits",
@@ -98,10 +126,16 @@ common_alg_set = {
         },
         {
             "name": "log_autovacuum_min_duration",
-            "const": "1s"
+            "const": "5s"
+        },
+        # For the pg-monitor to work correctly, this parameter must be in this locale
+        {
+            "name": "lc_messages",
+            "const": "en_US.UTF-8"
         },
         # ----------------------------------------------------------------------------------
         # Statistic collection
+        # ----------------------------------------------------------------------------------
         {
             "name": "track_activities",
             "const": "on"
@@ -120,7 +154,42 @@ common_alg_set = {
         },
         {
             "name": "track_activity_query_size",
-            "const": "2048"
+            "alg":  """\
+                1024 if workload_db == DutyDB.FINANCIAL else \
+                2048 if workload_db == DutyDB.MIXED else \
+                4096""",
+            "to_unit": "as_is"
+        },
+        # ----------------------------------------------------------------------------------
+        # Version and platform compatibility
+        # ----------------------------------------------------------------------------------
+        {
+            "name": "escape_string_warning",
+            "alg":  """\
+                'off' if workload_db == DutyDB.ERP1C else \
+                'on'""",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "standard_conforming_strings",
+            "alg":  """\
+                'off' if workload_db == DutyDB.ERP1C else \
+                'on'""",
+            "to_unit": "as_is"                
+        },
+        # ----------------------------------------------------------------------------------
+        # Connection and authentication
+        # ----------------------------------------------------------------------------------
+        {
+            "name": "row_security",
+            "alg":  """\
+                'off' if workload_db == DutyDB.ERP1C else \
+                'on'""",
+            "to_unit": "as_is"  
+        },
+        {
+            "name": "ssl",
+            "const":  "off"  
         }
     ],
     "10": [
@@ -146,6 +215,18 @@ common_alg_set = {
     "14": [
         {
             "__parent": "13"
+        },
+        {
+            "name": "track_wal_io_timing",
+            "const": "on"
+        },
+        {
+            "name": "log_recovery_conflict_waits",
+            "alg": """\
+                'on' if replication_mode == ReplicationMode.LOGICAL else \
+                'on' if replication_mode == ReplicationMode.PHYSICAL else \
+                'off'""",
+            "to_unit": "as_is"
         }
     ],
     "15": [
