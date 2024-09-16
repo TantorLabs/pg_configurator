@@ -126,7 +126,9 @@ class PGConfigurator:
 
     conf_profiles = {
         "profile_1c": "alg_set_1c",       # filename : dict name in file
-        "ext_perf": "ext_alg_set"
+        "ext_perf": "ext_alg_set",
+        "profile_platform_common": "platform_common_alg_set",
+        "profile_platform_perf": "platform_perf_alg_set"
     }
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
