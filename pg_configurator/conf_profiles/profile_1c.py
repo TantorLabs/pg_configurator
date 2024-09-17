@@ -6,8 +6,16 @@ alg_set_1c = {
             "to_unit": "as_is"
         },
         {
+            "name": "autovacuum_naptime",
+            "const": "20s"
+        },
+        {
+            "name": "autovacuum_vacuum_cost_delay",
+            "const": "2ms"
+        },
+        {
             "name": "auto_explain.log_min_duration",
-            "const": "5s"			
+            "const": "5s"
         },
         {
             "name": "from_collapse_limit",
@@ -17,14 +25,87 @@ alg_set_1c = {
             "name": "join_collapse_limit",
             "const": "20"
         },
-        {
-            "name": "standard_conforming_strings",
-            "const": "on"
-        },
+        # ----------------------------------------------------------------------------------
+        # Version and platform compatibility
+        # ----------------------------------------------------------------------------------
         {
             "name": "escape_string_warning",
-            "const": "on"
+            "const": "off"			
         },
+        {
+            "name": "standard_conforming_strings",
+            "const": "off"
+        },
+        # ----------------------------------------------------------------------------------
+        # Resource Consumption
+        {
+            "name": "max_connections",
+            "alg": "1000"
+        },
+        {
+            "name": "max_files_per_process",
+            "alg": "int(calc_cpu_scale(2000, 30000))",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "temp_buffers",
+            "alg":  "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.5, 1024 * 1000)"
+            # where: if 1C then temp_buffers per session 50% of work_mem
+        },
+        # ----------------------------------------------------------------------------------
+        # Write Ahead Log
+        {
+            "name": "wal_level",
+            "const": "replica"
+        },
+        {
+            "name": "full_page_writes",
+			"const": "on"
+        },
+        # ----------------------------------------------------------------------------------
+        # Replication
+        # Primary
+        {
+            "name": "max_wal_senders",
+            "alg": """\
+                2 if replication_enabled else \
+                0""",
+            "to_unit": "as_is"
+        },
+        # ----------------------------------------------------------------------------------
+        # Checkpointer
+        {
+            "name": "checkpoint_timeout",
+            "const": "15min"
+        },
+        {
+            "name": "commit_delay",  # microseconds
+            "alg": "int(calc_system_scores_scale(500, 3000))",
+            "to_unit": "as_is"
+        },
+        # ----------------------------------------------------------------------------------
+        # Background Writer
+        {
+            "name": "bgwriter_lru_multiplier",                      # some cushion against spikes in demand
+            "const": "4"
+        },
+        # ----------------------------------------------------------------------------------
+        # Query Planning
+        {
+            "name": "cpu_operator_cost",
+            "const": "0.001"
+        },
+        {
+            "name": "default_statistics_target",
+            "const": "100"
+        },
+        # ----------------------------------------------------------------------------------
+        # Asynchronous Behavior
+        {
+            "name": "max_parallel_workers_per_gather",
+            "const": "0"			
+        },
+		
         # The online_analyze module provides a set of features that immediately
         # update statistics after INSERT, UPDATE, DELETE, or SELECT INTO operations for the affected tables.
         {
@@ -90,17 +171,6 @@ alg_set_1c = {
             "const": "on"
         },
         # ----------------------------------------------------------------------------------
-        # Version and platform compatibility
-        # ----------------------------------------------------------------------------------
-        {
-            "name": "escape_string_warning",
-            "const": "off"			
-        },
-        {
-            "name": "standard_conforming_strings",
-            "const": "off"
-        },
-		        # ----------------------------------------------------------------------------------
         # Connection and authentication
         # ----------------------------------------------------------------------------------
         {
@@ -115,7 +185,11 @@ alg_set_1c = {
     "10": [
         {
             "__parent": "9.6"
-        }
+        },
+        {
+            "name": "max_parallel_workers",
+            "alg": "calc_cpu_scale(4, 24)"
+        },
     ],
     "11": [
         {

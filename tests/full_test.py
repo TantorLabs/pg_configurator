@@ -386,50 +386,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 DBOperations.run_command(['docker', 'stop', v[0]])
 
 
-    async def test_02_profiles_1c(self):
-        parser = PGConfigurator.get_arg_parser()
-        results = {}
-        for v in params.containers:
-            if v[0] in ('pg_14', 'pg_15'):
-                args = parser.parse_args([
-                    '--output-file-name=%s.conf' % os.path.join(params.output_dir, v[0]),
-                    '--conf-profiles=ext_perf,profile_1c',
-                    '--pg-version=%s' % v[1],
-                ])
-                results[v[0]] = run_pgc(args, params.pg_params).result_data
-                print(str(json.dumps(results, indent=4)))
-                DBOperations.run_command(['docker', 'stop', v[0]])
-                _, err = DBOperations.run_command(['docker', 'start', v[0]])
-                if err.find("No such container") > -1:
-                    await DBOperations.init_containers(containers=[v])
-                time.sleep(3)
-                DBOperations.run_command(['docker', 'logs', v[0]])
-                params_values = await DBOperations.check_extension_params(v, [
-                    'online_analyze.enable',
-                    'online_analyze.table_type',
-                    'online_analyze.verbose',
-                    'online_analyze.threshold',
-                    'online_analyze.scale_factor',
-                    'online_analyze.local_tracking',
-                    'online_analyze.min_interval'
-                ])
-                self.assertTrue(params_values is not None)
-                for p in [
-                    ['online_analyze.enable', 'off'],
-                    ['online_analyze.table_type', 'temporary'],
-                    ['online_analyze.verbose', 'off'],
-                    ['online_analyze.threshold', '500'],
-                    ['online_analyze.scale_factor', '0.1'],
-                    ['online_analyze.local_tracking', 'on'],
-                    ['online_analyze.min_interval', '10000']
-                ]:
-                    if p[0] == 'online_analyze.min_interval':
-                        x = 1
-                    self.assertTrue(p in params_values)
-                DBOperations.run_command(['docker', 'stop', v[0]])
-
-
-    async def test_03_profiles_1c(self):
+    def test_02_profiles_1c(self):
         parser = PGConfigurator.get_arg_parser()
         results = {}
         ver = "15"
@@ -438,16 +395,16 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
         args = parser.parse_args([
             '--output-file-name=%s' % outputfile,
             '--conf-profiles=ext_perf,profile_1c',
-            '--pg-version=15',
+            '--pg-version=%s' % ver,
             '--db-cpu=8', 
             '--db-ram=2048Mi',
-            '--db-disk-type=SAS',
-            '--db-duty=erp1c'
+            '--db-disk-type=SAS'
         ])
         results[ver] = run_pgc(args, params.pg_params).result_data
         print(str(json.dumps(results, indent=4)))
         self.assertTrue(results[ver] == json.loads("""
                 {
+                    "auto_explain.log_min_duration": "5s",
                     "autovacuum": "on",
                     "autovacuum_analyze_scale_factor": "0.0018",
                     "autovacuum_analyze_threshold": "608",
@@ -464,29 +421,29 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     "autovacuum_work_mem": "16MB",
                     "bgwriter_delay": "51ms",
                     "bgwriter_lru_maxpages": "1388",
-                    "bgwriter_lru_multiplier": "7.0",
-                    "checkpoint_completion_target": "0.9",
+                    "bgwriter_lru_multiplier": "4",
+                    "checkpoint_completion_target": "0.85",
                     "checkpoint_timeout": "15min",
-                    "client_connection_check_interval": "30s",
+                    "client_connection_check_interval": "5s",
                     "commit_delay": "528",
                     "commit_siblings": "11",
                     "cpu_operator_cost": "0.001",
                     "default_statistics_target": "100",
-                    "default_toast_compression": "lz4",
+                    "default_toast_compression": "pglz",
                     "effective_cache_size": "220MB",
                     "effective_io_concurrency": "4",
                     "enable_async_append": "on",
-                    "escape_string_warning": "on",
+                    "escape_string_warning": "off",
                     "from_collapse_limit": "20",
                     "fsync": "on",
                     "full_page_writes": "on",
-                    "hash_mem_multiplier": "8.0",
+                    "hash_mem_multiplier": "2.0",
                     "hot_standby": "on",
                     "hot_standby_feedback": "on",
                     "huge_pages": "try",
                     "idle_in_transaction_session_timeout": "86400000",
-                    "join_collapse_limit": "20",
                     "jit": "off",
+                    "join_collapse_limit": "20",
                     "listen_addresses": "'*'",
                     "logical_decoding_work_mem": "156MB",
                     "maintenance_io_concurrency": "4",
@@ -494,14 +451,14 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     "max_connections": "1000",
                     "max_files_per_process": "3217",
                     "max_locks_per_transaction": "110",
-                    "max_logical_replication_workers": "6",
+                    "max_logical_replication_workers": "4",
                     "max_parallel_maintenance_workers": "4",
-                    "max_parallel_workers": "5",
-                    "max_parallel_workers_per_gather": "2",
+                    "max_parallel_workers": "4",
+                    "max_parallel_workers_per_gather": "0",
                     "max_pred_locks_per_transaction": "110",
                     "max_replication_slots": "10",
-                    "max_standby_streaming_delay": "-1",
-                    "max_sync_workers_per_subscription": "4",
+                    "max_standby_streaming_delay": "1800s",
+                    "max_sync_workers_per_subscription": "2",
                     "max_wal_senders": "2",
                     "max_wal_size": "1764MB",
                     "max_worker_processes": "8",
@@ -523,24 +480,27 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     "pg_store_plans.track": "top",
                     "plantuner.fix_empty_table": "on",
                     "random_page_cost": "2.5",
+                    "row_security": "off",
                     "seq_page_cost": "1",
                     "shared_buffers": "1111MB",
-                    "standard_conforming_strings": "on",
+                    "shared_preload_libraries": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+                    "ssl": "off",
+                    "standard_conforming_strings": "off",
                     "statement_timeout": "86400000",
                     "superuser_reserved_connections": "4",
-                    "synchronous_commit": "None",
+                    "synchronous_commit": "local",
                     "temp_buffers": "1000kB",
                     "vacuum_cost_delay": "10ms",
                     "vacuum_cost_limit": "8000",
                     "wal_buffers": "18MB",
                     "wal_compression": "lz4",
                     "wal_keep_size": "1200MB",
-                    "wal_level": "logical",
+                    "wal_level": "replica",
                     "wal_log_hints": "on",
                     "wal_receiver_status_interval": "10s",
                     "wal_receiver_timeout": "300s",
                     "wal_sender_timeout": "300s",
-                    "wal_writer_delay": "255ms",
+                    "wal_writer_delay": "209ms",
                     "wal_writer_flush_after": "1764kB",
                     "work_mem": "10000kB"
                 }

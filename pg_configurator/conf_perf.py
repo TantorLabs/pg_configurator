@@ -22,10 +22,7 @@ perf_alg_set = {
         },
         {
             "name": "autovacuum_naptime",
-            "alg": """\
-                '20s' if duty_db == DutyDB.ERP1C else \
-                '15s'""",
-            "to_unit": "as_is"
+            "const": "15s"			
         },
         {
             "name": "autovacuum_vacuum_threshold",
@@ -56,10 +53,7 @@ perf_alg_set = {
         },
         {
             "name": "autovacuum_vacuum_cost_delay",
-            "alg": """\
-                '2ms' if duty_db == DutyDB.ERP1C else \
-                '10ms'""",
-            "to_unit": "as_is"
+            "const": "10ms"			
         },
         {
             "name": "vacuum_cost_delay",
@@ -82,7 +76,6 @@ perf_alg_set = {
         {
             "name": "max_connections",
             "alg": """\
-                1000 if duty_db == DutyDB.ERP1C else \
                 max(
                     calc_cpu_scale(min_conns, max_conns),
                     min_conns
@@ -92,8 +85,7 @@ perf_alg_set = {
         },
         {
             "name": "max_files_per_process",
-            "alg": """int(calc_cpu_scale(2000, 30000)) if duty_db == DutyDB.ERP1C else int(calc_cpu_scale(1000, 10000)) """,
-            "to_unit": "as_is"
+            "alg": "calc_cpu_scale(1000, 10000)"
         },
         {
             "name": "superuser_reserved_connections",
@@ -105,10 +97,8 @@ perf_alg_set = {
         },
         {
             "name": "temp_buffers",
-            "alg":  """\
-                max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.5, 1024 * 1000) if duty_db == DutyDB.ERP1C else \
-                max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.1, 1024 * 1000) """
-            # where: if 1C then temp_buffers per session 50%, else 10% of work_mem
+            "alg": "max(((total_ram_in_bytes * client_mem_part) / max_connections) * 0.1, 1024 * 1000)"
+            # where: temp_buffers per session, 10% of work_mem
         },
         {
             "name": "maintenance_work_mem",
@@ -131,10 +121,7 @@ perf_alg_set = {
         },
         {
             "name": "wal_level",
-            "alg": """\
-                'logical' if replication_enabled else \
-                'replica' if duty_db == DutyDB.ERP1C else \
-                'minimal'""",
+            "alg": "'logical' if replication_enabled else 'minimal'",
             "to_unit": "as_is"
         },
         {
@@ -152,7 +139,7 @@ perf_alg_set = {
         },
         {
             "name": "full_page_writes",
-            "alg": "'on' if duty_db in [DutyDB.FINANCIAL, DutyDB.ERP1C] or replication_enabled else 'off'",
+            "alg": "'on' if duty_db == DutyDB.FINANCIAL or replication_enabled else 'off'",
             "to_unit": "as_is"
         },
         {
@@ -218,10 +205,7 @@ perf_alg_set = {
         },
         {
             "name": "max_wal_senders",
-            "alg": """\
-                2 if duty_db == DutyDB.ERP1C and replication_enabled else \
-                10 if replication_enabled else \
-                0""",
+            "alg": "10 if replication_enabled else 0",
             "to_unit": "as_is"
         },
         {
@@ -273,9 +257,9 @@ perf_alg_set = {
         {
             "name": "checkpoint_timeout",
             "alg": """\
-                '15min' if duty_db in [DutyDB.FINANCIAL, DutyDB.ERP1C] else \
+                '15min' if duty_db == DutyDB.FINANCIAL else \
                 '30min' if duty_db == DutyDB.MIXED else \
-                '60min'""",
+                '1h'""",
             "to_unit": "as_is"
         },
         {
@@ -291,7 +275,6 @@ perf_alg_set = {
             "alg": """\
                 0 if duty_db == DutyDB.FINANCIAL else \
                 int(calc_system_scores_scale(100, 1000)) if duty_db == DutyDB.MIXED else \
-                int(calc_system_scores_scale(500, 3000)) if duty_db == DutyDB.ERP1C else \
                 int(calc_system_scores_scale(100, 5000))""",  # DutyDB.STATISTIC
             "to_unit": "as_is"
         },
@@ -315,11 +298,8 @@ perf_alg_set = {
             "to_unit": "as_is"
         },
         {
-            "name": "bgwriter_lru_multiplier",                      # some cushion against spikes in demand
-            "alg": """\
-                4 if duty_db == DutyDB.ERP1C else \
-                7.0""",
-            "to_unit": "as_is"
+            "name": "bgwriter_lru_multiplier",  # some cushion against spikes in demand
+            "const": "7.0"
         },
         # ----------------------------------------------------------------------------------
         # Query Planning
@@ -328,18 +308,8 @@ perf_alg_set = {
             "alg": "total_ram_in_bytes - shared_buffers - UnitConverter.size_from(reserved_system_ram, system=UnitConverter.sys_iec)"
         },
         {
-            "name": "cpu_operator_cost",
-            "alg": """\
-                0.001 if duty_db == DutyDB.ERP1C else \
-                0.0025""",
-            "to_unit": "as_is"
-        },
-        {
             "name": "default_statistics_target",
-            "alg": """\
-                '100' if duty_db == DutyDB.ERP1C else \
-                '500'""",
-            "to_unit": "as_is"
+            "const": "1000"
         },
         {
             "name": "random_page_cost",
@@ -372,7 +342,6 @@ perf_alg_set = {
              "alg": """\
                 calc_cpu_scale(2, 4) if duty_db == DutyDB.FINANCIAL else \
                 calc_cpu_scale(2, 8) if duty_db == DutyDB.MIXED else \
-                0 if duty_db == DutyDB.ERP1C else \
                 calc_cpu_scale(2, 16)"""
         },
         # ----------------------------------------------------------------------------------
@@ -411,7 +380,7 @@ perf_alg_set = {
             "name": "max_parallel_workers",
             "alg": """\
                 calc_cpu_scale(4, 12) if duty_db == DutyDB.FINANCIAL else \
-                calc_cpu_scale(4, 24) if duty_db in [DutyDB.MIXED, DutyDB.ERP1C] else \
+                calc_cpu_scale(4, 24) if duty_db == DutyDB.MIXED else \
                 calc_cpu_scale(4, 32)"""
         },
         {
