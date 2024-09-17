@@ -222,10 +222,7 @@ common_alg_set = {
         },
         {
             "name": "log_recovery_conflict_waits",
-            "alg": """\
-                'on' if replication_mode == ReplicationMode.LOGICAL else \
-                'on' if replication_mode == ReplicationMode.PHYSICAL else \
-                'off'""",
+            "alg": "'on' if replication_enabled else 'off'",				
             "to_unit": "as_is"
         }
     ],
