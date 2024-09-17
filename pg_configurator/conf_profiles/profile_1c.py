@@ -1,6 +1,15 @@
 alg_set_1c = {
     "9.6": [
         {
+            "name": "shared_preload_libraries",
+            "const": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+            "to_unit": "as_is"
+        },
+        {
+            "name": "auto_explain.log_min_duration",
+            "const": "5s"			
+        },
+        {
             "name": "from_collapse_limit",
             "const": "20"
         },
@@ -79,6 +88,28 @@ alg_set_1c = {
         {
             "name": "plantuner.fix_empty_table",
             "const": "on"
+        },
+        # ----------------------------------------------------------------------------------
+        # Version and platform compatibility
+        # ----------------------------------------------------------------------------------
+        {
+            "name": "escape_string_warning",
+            "const": "off"			
+        },
+        {
+            "name": "standard_conforming_strings",
+            "const": "off"
+        },
+		        # ----------------------------------------------------------------------------------
+        # Connection and authentication
+        # ----------------------------------------------------------------------------------
+        {
+            "name": "row_security",
+            "const": "off"
+        },
+        {
+            "name": "ssl",
+            "const":  "off"  
         }
     ],
     "10": [
