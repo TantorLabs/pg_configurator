@@ -4,10 +4,7 @@ common_alg_set = {
         # Extensions
         {
             "name": "shared_preload_libraries",
-            "alg": """\
-                'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze' if duty_db == DutyDB.ERP1C else \
-                'pg_stat_statements,auto_explain' """,
-            "to_unit": "as_is"
+            "const": "'pg_stat_statements,auto_explain'"
         },
         # The auto_explain module provides a means for logging execution plans of slow statements automatically,
         # without having to run EXPLAIN by hand.
@@ -15,7 +12,7 @@ common_alg_set = {
             "name": "auto_explain.log_min_duration",
             "alg":  """\
                 '3s' if duty_db == DutyDB.FINANCIAL else \
-                '5s' if duty_db in [DutyDB.MIXED, DutyDB.ERP1C] else \
+                '5s' if duty_db == DutyDB.MIXED else \
                 '30s' """,
             "to_unit": "as_is"
         },
@@ -165,31 +162,22 @@ common_alg_set = {
         # ----------------------------------------------------------------------------------
         {
             "name": "escape_string_warning",
-            "alg":  """\
-                'off' if duty_db == DutyDB.ERP1C else \
-                'on'""",
-            "to_unit": "as_is"
+            "const": "on"			
         },
         {
             "name": "standard_conforming_strings",
-            "alg":  """\
-                'off' if duty_db == DutyDB.ERP1C else \
-                'on'""",
-            "to_unit": "as_is"                
+            "const": "on"
         },
         # ----------------------------------------------------------------------------------
         # Connection and authentication
         # ----------------------------------------------------------------------------------
         {
             "name": "row_security",
-            "alg":  """\
-                'off' if duty_db == DutyDB.ERP1C else \
-                'on'""",
-            "to_unit": "as_is"  
+            "const": "on"
         },
         {
             "name": "ssl",
-            "const":  "off"  
+            "const":  "on"  
         }
     ],
     "10": [
