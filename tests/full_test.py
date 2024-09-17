@@ -486,6 +486,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                     "huge_pages": "try",
                     "idle_in_transaction_session_timeout": "86400000",
                     "join_collapse_limit": "20",
+                    "jit": "off",
                     "listen_addresses": "'*'",
                     "logical_decoding_work_mem": "156MB",
                     "maintenance_io_concurrency": "4",

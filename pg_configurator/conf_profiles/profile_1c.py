@@ -89,6 +89,10 @@ alg_set_1c = {
     "11": [
         {
             "__parent": "10"
+        },
+        {
+            "name": "jit",
+            "const": "off"
         }
     ],
     "12": [
