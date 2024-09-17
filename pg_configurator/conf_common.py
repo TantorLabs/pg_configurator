@@ -5,7 +5,7 @@ common_alg_set = {
         {
             "name": "shared_preload_libraries",
             "alg": """\
-                'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze' if workload_db == DutyDB.ERP1C else \
+                'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze' if duty_db == DutyDB.ERP1C else \
                 'pg_stat_statements,auto_explain' """,
             "to_unit": "as_is"
         },
@@ -14,8 +14,8 @@ common_alg_set = {
         {
             "name": "auto_explain.log_min_duration",
             "alg":  """\
-                '3s' if workload_db == DutyDB.FINANCIAL else \
-                '5s' if workload_db in [DutyDB.MIXED, DutyDB.ERP1C] else \
+                '3s' if duty_db == DutyDB.FINANCIAL else \
+                '5s' if duty_db in [DutyDB.MIXED, DutyDB.ERP1C] else \
                 '30s' """,
             "to_unit": "as_is"
         },
@@ -44,8 +44,8 @@ common_alg_set = {
         {
             "name": "pg_stat_statements.max",
             "alg":  """\
-                '3000' if workload_db == DutyDB.FINANCIAL else \
-                '5000' if workload_db == DutyDB.MIXED else \
+                '3000' if duty_db == DutyDB.FINANCIAL else \
+                '5000' if duty_db == DutyDB.MIXED else \
                 '7000' """,
             "to_unit": "as_is"
         },
@@ -94,8 +94,8 @@ common_alg_set = {
         {
             "name": "log_min_duration_statement",
             "alg":  """\
-                '3s' if workload_db == DutyDB.FINANCIAL else \
-                '5s' if workload_db == DutyDB.MIXED else \
+                '3s' if duty_db == DutyDB.FINANCIAL else \
+                '5s' if duty_db == DutyDB.MIXED else \
                 '30s' """,
             "to_unit": "as_is"
         },
@@ -155,8 +155,8 @@ common_alg_set = {
         {
             "name": "track_activity_query_size",
             "alg":  """\
-                1024 if workload_db == DutyDB.FINANCIAL else \
-                2048 if workload_db == DutyDB.MIXED else \
+                1024 if duty_db == DutyDB.FINANCIAL else \
+                2048 if duty_db == DutyDB.MIXED else \
                 4096""",
             "to_unit": "as_is"
         },
@@ -166,14 +166,14 @@ common_alg_set = {
         {
             "name": "escape_string_warning",
             "alg":  """\
-                'off' if workload_db == DutyDB.ERP1C else \
+                'off' if duty_db == DutyDB.ERP1C else \
                 'on'""",
             "to_unit": "as_is"
         },
         {
             "name": "standard_conforming_strings",
             "alg":  """\
-                'off' if workload_db == DutyDB.ERP1C else \
+                'off' if duty_db == DutyDB.ERP1C else \
                 'on'""",
             "to_unit": "as_is"                
         },
@@ -183,7 +183,7 @@ common_alg_set = {
         {
             "name": "row_security",
             "alg":  """\
-                'off' if workload_db == DutyDB.ERP1C else \
+                'off' if duty_db == DutyDB.ERP1C else \
                 'on'""",
             "to_unit": "as_is"  
         },
