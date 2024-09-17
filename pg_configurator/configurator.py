@@ -93,6 +93,7 @@ class DutyDB(BasicEnum, Enum):
     FINANCIAL = 'financial'           # High reliability, low speed, fast recovery
                                           # Billing tasks. Can't lose transactions in case of a crash
 
+
 class DiskType(BasicEnum, Enum):
     # We assume that we have minimum 2 disk in hardware RAID1 (or 4 in RAID10) with BBU
     SATA = 'SATA'
