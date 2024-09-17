@@ -92,8 +92,6 @@ class DutyDB(BasicEnum, Enum):
                                           # Mostly complicated real time SQL queries
     FINANCIAL = 'financial'           # High reliability, low speed, fast recovery
                                           # Billing tasks. Can't lose transactions in case of a crash
-    ERP1C = 'erp1c'          	     # A lot of temporary files
-                                          # Very specific workload.
 
 class DiskType(BasicEnum, Enum):
     # We assume that we have minimum 2 disk in hardware RAID1 (or 4 in RAID10) with BBU
