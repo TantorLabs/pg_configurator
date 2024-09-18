@@ -399,7 +399,8 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 '--pg-version=%s' % ver,
                 '--db-cpu=8', 
                 '--db-ram=2048Mi',
-                '--db-disk-type=SAS'
+                '--db-disk-type=SAS',
+                '--output-format=conf'
             ])
             results[ver] = run_pgc(args, params.pg_params).result_data
             print(str(json.dumps(results, indent=4)))
@@ -488,7 +489,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 "row_security": "off",
                 "seq_page_cost": "1",
                 "shared_buffers": "1111MB",
-                "shared_preload_libraries": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+                "shared_preload_libraries": "'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze'",
                 "ssl": "off",
                 "standard_conforming_strings": "off",
                 "statement_timeout": "86400000",
@@ -590,7 +591,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 "row_security": "off",
                 "seq_page_cost": "1",
                 "shared_buffers": "1111MB",
-                "shared_preload_libraries": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+                "shared_preload_libraries": "'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze'",
                 "ssl": "off",
                 "standard_conforming_strings": "off",
                 "statement_timeout": "86400000",
@@ -693,7 +694,7 @@ class UnitTestProfiles(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 "row_security": "off",
                 "seq_page_cost": "1",
                 "shared_buffers": "1111MB",
-                "shared_preload_libraries": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+                "shared_preload_libraries": "'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze'",
                 "ssl": "off",
                 "standard_conforming_strings": "off",
                 "statement_timeout": "86400000",

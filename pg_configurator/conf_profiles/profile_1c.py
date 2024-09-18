@@ -2,7 +2,7 @@ alg_set_1c = {
     "9.6": [
         {
             "name": "shared_preload_libraries",
-            "const": "pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze",
+            "const": "'pg_stat_statements,pg_store_plans,auto_explain,plantuner,online_analyze'",
             "to_unit": "as_is"
         },
         {
