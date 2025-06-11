@@ -582,5 +582,10 @@ platform_perf_alg_set = {
                 )""",
             "to_unit": "MB",
         },
-   ]
+   ],
+    "17": [
+        {
+            "__parent": "16"  # inheritance
+        },
+   ],
 }

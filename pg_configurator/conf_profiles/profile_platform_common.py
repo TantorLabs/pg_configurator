@@ -278,7 +278,12 @@ platform_common_alg_set = {
     ],
     "16": [
         {
+            "__parent": "15"
+        }
+    ],
+    "17": [
+        {
             "__parent": "16"
         }
-    ]
+    ],
 }

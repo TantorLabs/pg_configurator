@@ -504,5 +504,10 @@ perf_alg_set = {
             "name": "max_parallel_apply_workers_per_subscription",
             "alg": "calc_cpu_scale(4, 16)"
         }
-    ]
+    ],
+    "17": [
+        {
+            "__parent": "16"  # inheritance
+        },
+    ],
 }
