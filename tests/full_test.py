@@ -39,7 +39,8 @@ class TestParams:
         ['pg_13', '13', 5484],
         ['pg_14', '14', 5485],
         ['pg_15', '15', 5486],
-        ['pg_16', '16', 5487]
+        ['pg_16', '16', 5487],
+        ['pg_17', '16', 5488],
     ]
 
     pg_params = [
@@ -1064,7 +1065,7 @@ class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
     async def test_01_history_params(self):
         parser = PGConfigurator.get_arg_parser()
         args = parser.parse_args([
-            '--settings-history=15,9.6',
+            '--settings-history=17,9.6',
             '--debug'
         ])
         res = run_pgc(args)
@@ -1135,6 +1136,14 @@ class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 },
                 {
                     "16": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "17": {
                         "setting": "max_parallel_maintenance_workers",
                         "value": "2",
                         "boot_val": "2",

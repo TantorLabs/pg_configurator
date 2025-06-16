@@ -1,3 +1,3 @@
 """pg_configurator version information."""
 
-__version__ = "24.09.17"
+__version__ = "25.06.11"
