@@ -123,6 +123,7 @@ class PGConfigurator:
         "15": "settings_pg_15.csv",
         "16": "settings_pg_16.csv",
         "17": "settings_pg_17.csv",
+        "18": "settings_pg_18.csv",
     }
 
     conf_profiles = {
@@ -559,7 +560,7 @@ class PGConfigurator:
             "--pg-version",
             help="PostgreSQL version, (default: %(default)s)",
             type=str,
-            choices=list(["9.6", "10", "11", "12", "13", "14", "15", "16", "17"]),
+            choices=list(["9.6", "10", "11", "12", "13", "14", "15", "16", "17", "18"]),
             default=mca["pg_version"]
         )
         parser.add_argument(

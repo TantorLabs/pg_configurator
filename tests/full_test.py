@@ -1,15 +1,12 @@
-import asyncio
-import json
 import os.path
-import time
-
-from pg_configurator.configurator import *
 import subprocess
+import time
 import unittest
-import socket
+
 import asyncpg
 
-import sys
+from pg_configurator.configurator import *
+
 """
 sys.path.append('pg_configurator/common.py')
 from pg_configurator.common import *
@@ -40,7 +37,8 @@ class TestParams:
         ['pg_14', '14', 5485],
         ['pg_15', '15', 5486],
         ['pg_16', '16', 5487],
-        ['pg_17', '16', 5488],
+        ['pg_17', '17', 5488],
+        ['pg_18', '18', 5488],
     ]
 
     pg_params = [
