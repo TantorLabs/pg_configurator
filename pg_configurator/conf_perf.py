@@ -510,4 +510,9 @@ perf_alg_set = {
             "__parent": "16"  # inheritance
         },
     ],
+    "18": [
+        {
+            "__parent": "17"  # inheritance
+        },
+    ],
 }
