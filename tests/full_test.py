@@ -38,7 +38,7 @@ class TestParams:
         ['pg_15', '15', 5486],
         ['pg_16', '16', 5487],
         ['pg_17', '17', 5488],
-        ['pg_18', '18', 5488],
+        ['pg_18', '18', 5489],
     ]
 
     pg_params = [
@@ -1142,6 +1142,14 @@ class UnitTestHistory(unittest.IsolatedAsyncioTestCase, BasicUnitTest):
                 },
                 {
                     "17": {
+                        "setting": "max_parallel_maintenance_workers",
+                        "value": "2",
+                        "boot_val": "2",
+                        "unit": ""
+                    }
+                },
+                {
+                    "18": {
                         "setting": "max_parallel_maintenance_workers",
                         "value": "2",
                         "boot_val": "2",
