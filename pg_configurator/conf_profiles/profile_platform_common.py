@@ -17,11 +17,6 @@ platform_common_alg_set = {
             "const": "off"
         },
         {
-            "name": "online_analyze.scale_factor",
-            "alg": "round(float(calc_scale_factor_scale(0.0007, 0.1)),4)",
-            "to_unit": "as_is"
-        },
-        {
             "name": "online_analyze.threshold",
             "alg": "int(calc_system_scores_scale(500, 10000))",
             "to_unit": "as_is"
