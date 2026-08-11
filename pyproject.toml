@@ -21,7 +21,7 @@ dynamic = ["version"]
 dependencies = ["psutil"]
 
 [project.optional-dependencies]
-test = ["asyncpg==0.26.0"]
+test = ["asyncpg==0.30"]
 
 [project.urls]
 Homepage = "https://github.com/TantorLabs/pg_configurator"
