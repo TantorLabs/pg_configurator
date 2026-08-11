@@ -5,7 +5,7 @@ apt-get -y install git python3-setuptools python3-venv
 git clone https://github.com/TantorLabs/pg_configurator.git && cd pg_configurator
 python3 -m venv .venv
 source .venv/bin/activate
-pip3 install -r requirements.txt
+pip3 install -e .
 ```
 
 For testing it is necessary to additionally install Docker
@@ -32,18 +32,18 @@ apt-get -y install postgresql-client-15
 # Packaging the Project
 To create a source distribution run:
 ```bash
-python3 setup.py sdist
+python3 -m build
 ```
-This will generate an archive in the *dist* directory, so you can then upload it to a private PyPI repository if you need.
+This will generate archives in the *dist* directory (source distribution and wheel), so you can then upload them to a private PyPI repository if you need.
 
 # Installing the Package
 Use `pip` utility to install the package:
 ```bash
-pip3 install dist/pg_configurator-22.10.17.tar.gz
+pip3 install dist/pg_configurator-26.1.21.tar.gz
 ```
 
 # Usage
-`pip` with create an entrypoint script during the installation, so you should be able to start by simply issuing `pg_configurtor` command from your shell:
+`pip` will create an entrypoint script during the installation, so you should be able to start by simply issuing the `pg_configurator` command from your shell:
 ```bash
 # Show help
 pg_configurator -h

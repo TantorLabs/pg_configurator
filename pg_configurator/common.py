@@ -1,7 +1,6 @@
 import sys
 import inspect
 import traceback
-from pkg_resources import parse_version as version
 import re
 from enum import Enum
 
@@ -51,7 +50,7 @@ def get_default_args(func):
 
 
 def get_major_version(str_version):
-    return version(re.findall(r"(\d+)", str_version)[0])
+    return int(re.findall(r"(\d+)", str_version)[0])
 
 
 def print_header(header):

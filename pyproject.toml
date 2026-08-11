@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pg_configurator"
+description = "PostgreSQL configuration tool"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Oleg Gurov" }]
+keywords = ["postgresql", "configuration"]
+requires-python = ">=3.4"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Database",
+]
+dynamic = ["version"]
+dependencies = ["psutil"]
+
+[project.optional-dependencies]
+test = ["asyncpg==0.26.0"]
+
+[project.urls]
+Homepage = "https://github.com/TantorLabs/pg_configurator"
+
+[project.scripts]
+pg_configurator = "pg_configurator.__main__:_cli_entrypoint"
+
+[tool.setuptools.dynamic]
+version = { attr = "pg_configurator.version.__version__" }
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+pg_configurator = ["pg_settings_history/*"]
+
+[tool.tox]
+requires = ["tox-uv"]
+env_list = ["py38", "py39", "py310", "py311", "py312", "py313", "py314"]
+skip_missing_interpreters = true
+
+[tool.tox.env_run_base]
+description = "Run pg_configurator test suite on {base_python}"
+runner = "uv-venv-runner"
+package = "editable"
+deps = ["psutil", "asyncpg", "pytest"]
+commands = [["pytest", { replace = "posargs", default = ["tests", "-v"], extend = true }]]

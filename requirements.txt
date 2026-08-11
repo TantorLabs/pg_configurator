@@ -1,2 +1,0 @@
-asyncpg==0.26.0
-psutil
