@@ -350,6 +350,14 @@ class PGConfigurator:
             prepared_alg_set.extend(self.ext_params)
 
         config_res = {}
+        # Evaluation context for alg expressions: module globals plus local
+        # variables and nested helper functions. Computed param values are
+        # stored back here so later alg expressions can reference them. This
+        # replaces exec()-into-locals, which stopped working on Python 3.13+
+        # (PEP 667 changed frame/locals semantics so names created by exec in
+        # a function are no longer visible to a subsequent eval).
+        eval_ns = dict(globals())
+        eval_ns.update(locals())
         for param in prepared_alg_set:
             if "name" not in param:
                 continue
@@ -363,22 +371,23 @@ class PGConfigurator:
 
             if "alg" in param:
                 try:
+                    alg_value = eval(param["alg"], eval_ns)
+                    eval_ns[param_name] = alg_value
                     if "unit_postfix" in param:
-                        config_res[param_name] = str(eval(param["alg"])) + param["unit_postfix"]
+                        config_res[param_name] = str(alg_value) + param["unit_postfix"]
                     else:
                         if "to_unit" in param and param["to_unit"] == 'as_is':
-                            config_res[param_name] = str(eval(param["alg"]))
+                            config_res[param_name] = str(alg_value)
                         elif "to_unit" in param and param["to_unit"] == 'quote':
-                            config_res[param_name] = "'%s'" % str(eval(param["alg"]))
+                            config_res[param_name] = "'%s'" % str(alg_value)
                         else:
                             config_res[param_name] = str(
                                 UnitConverter.size_to(
-                                    eval(param["alg"]),
+                                    alg_value,
                                     system=UnitConverter.sys_pg,
                                     unit=param["to_unit"] if "to_unit" in param is not None else None
                                 )
                             )
-                            exec(param_name + '=' + str(eval(param["alg"])))
                 except:
                     print("Exception on processing: %s\n%s" % (param, exception_helper()))
                     raise NameError("Invalid alg value")

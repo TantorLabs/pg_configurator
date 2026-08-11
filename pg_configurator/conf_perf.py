@@ -509,10 +509,18 @@ perf_alg_set = {
         {
             "__parent": "16"  # inheritance
         },
+        {
+            "name": "old_snapshot_threshold",
+            "alg": "deprecated"
+        }
     ],
     "18": [
         {
             "__parent": "17"  # inheritance
         },
+        {
+            "name": "old_snapshot_threshold",
+            "alg": "deprecated"
+        }
     ],
 }

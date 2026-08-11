@@ -10,3 +10,4 @@ venv/
 *.tar
 *.tar.gz
 .venv/*
+.tox/
