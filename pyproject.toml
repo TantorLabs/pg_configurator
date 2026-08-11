@@ -9,7 +9,7 @@ readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Oleg Gurov" }]
 keywords = ["postgresql", "configuration"]
-requires-python = ">=3.4"
+requires-python = ">=3.8"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
