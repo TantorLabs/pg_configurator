@@ -148,6 +148,16 @@ class PGConfigurator:
                                                                  args.output_file_name))
 
     @staticmethod
+    def str_to_bool(value):
+        if isinstance(value, bool):
+            return value
+        if str(value).strip().lower() in ('true', 'yes', 'on', '1'):
+            return True
+        if str(value).strip().lower() in ('false', 'no', 'off', '0'):
+            return False
+        raise argparse.ArgumentTypeError("expected a boolean value, got '%s'" % value)
+
+    @staticmethod
     def calc_synchronous_commit(duty_db, replication_enabled):
         if replication_enabled:
             if duty_db == DutyDB.STATISTIC:
@@ -562,7 +572,8 @@ class PGConfigurator:
         parser.add_argument(
             "--replication-enabled",
             help="Replication is enabled, (default: %(default)s)",
-            type=bool,
+            type=PGConfigurator.str_to_bool,
+            metavar="{True,False}",
             default=mca["replication_enabled"]
         )
         parser.add_argument(
