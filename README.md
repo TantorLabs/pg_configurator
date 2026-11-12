@@ -70,3 +70,21 @@ pg_configurator \
         --client-mem-part=0.6 \
         --maintenance-mem-part=0.1
 ```
+
+To exclude specific parameters from recommendations, use `--exclude` with a
+comma-separated list. Spaces around names are ignored. The `-exlude` alias is
+also supported:
+
+```bash
+pg_configurator \
+        --db-cpu=40 \
+        --db-ram=128Gi \
+        --pg-version=16 \
+        --common-conf \
+        --output-format=patroni-json \
+        -exlude="min_wal_size, max_wal_size,log_destination"
+```
+
+Exclusions apply to all output formats and output files. Unknown names and empty
+list entries are ignored. Parameters are calculated before filtering so that
+other recommendations can still use their values.

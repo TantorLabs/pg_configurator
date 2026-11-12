@@ -538,6 +538,12 @@ class PGConfigurator:
             default=OutputFormat.CONF.value
         )
         parser.add_argument(
+            "--exclude",
+            "-exlude",
+            help="Exclude comma-separated parameter names from recommendations",
+            default=""
+        )
+        parser.add_argument(
             "--output-file-name",
             help="Save to file",
             type=str,
@@ -760,6 +766,11 @@ def run_pgc(external_args=None, ext_params=None) -> PGConfiguratorResult:
         common_conf=args.common_conf,
         conf_profiles=args.conf_profiles
     )
+
+    excluded_parameters = {
+        name.strip() for name in getattr(args, 'exclude', '').split(',') if name.strip()
+    }
+    conf = {name: value for name, value in conf.items() if name not in excluded_parameters}
 
     out_conf = ''
     if args.output_format == OutputFormat.CONF:
